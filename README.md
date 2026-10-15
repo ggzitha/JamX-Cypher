@@ -24,6 +24,7 @@ A pocket-sized, dual-radio 2.4 GHz multi-protocol RF testing tool built on the *
 - [Channel Mapping](#-channel-mapping)
 - [Preset Library](#-preset-library)
 - [Auto Mode (RPD Scanner)](#-auto-mode-rpd-scanner)
+- [New Modes Explained](#-new-modes-explained)
 - [Use Cases & Recipes](#-use-cases--recipes)
 - [Hardware Tips & Troubleshooting](#-hardware-tips--troubleshooting)
 - [Credits](#-credits)
@@ -37,6 +38,9 @@ A pocket-sized, dual-radio 2.4 GHz multi-protocol RF testing tool built on the *
 - **14 curated presets** — WiFi Priority, BLE Advertising, BT Classic, Drone FHSS, USB Dongle, FPV Video, RC Control, Zigbee, and more
 - **RPD-based spectrum scanner** — detects RF energy > -64 dBm on any channel
 - **Auto mode** — reacts to live RF activity, concentrates jamming on the noisiest channels
+- **Reactive JamX** — Radio 1 scouts for active packets, Radio 2 strikes the hot channel
+- **Hybrid JamX** — Radio 1 blind hops while Radio 2 dynamically hunts and attacks loudest channel
+- **Channel Picker** — spectrum scan with manual lock-on for dual-radio focused attacks
 - **Targeted device modes** — Audio (speakers), HID (mouse/keyboard), Beacon (BLE tags)
 - **Persistent settings** — saved to SPIFFS flash, survive power cycles
 - **I2C bus recovery** — self-heals after RF-induced display lock-ups
@@ -203,14 +207,17 @@ Navigate with **UP / DOWN**, confirm with **SELECT**. Two items are visible at a
 
 | Menu Item | Function |
 | :--- | :--- |
-| **BT/BLE Jammer** | Jams Bluetooth Classic or BLE depending on Protocol/Target settings |
-| **Drone Jammer** | Jams drone control bands (0-124 NRF channels) |
-| **Wifi Jammer** | Jams WiFi 2.4 GHz channels |
-| **Multi Ch Jam** | Mix of all protocols (random hop) |
+| **BT/BLE JamX** | Jams Bluetooth Classic or BLE depending on Protocol/Target settings |
+| **Drone JamX** | Jams drone control bands (0-124 NRF channels) |
+| **Wifi JamX** | Jams WiFi 2.4 GHz channels |
+| **MultiCH JamX** | Mix of all protocols (random hop) |
+| **Reactive JamX** | Scout (R1 RX) detects active channel → Striker (R2 TX) attacks it |
+| **Hybrid JamX** | Radio 1 blind hops while Radio 2 dynamically hunts and attacks loudest channel |
+| **Channel Picker** | Scans spectrum, lets you choose top channel, both radios lock & jam |
 | **Spectrum Scan** | Scans 0-125 and draws a bar graph |
 | **Test Radios** | Prints `printPrettyDetails()` for each NRF |
 | **Settings** | All configuration options |
-| **Help** | On-device 6-page guide |
+| **Help** | On-device 8-page guide |
 
 To **stop any jam mode**, press **SELECT**.
 
@@ -370,19 +377,50 @@ Same as above for Radio 2.
 
 ---
 
-### 13. `< Reset Defaults >`
+### 13. `RxSmp:` — Reactive Samples
+
+RPD samples per channel (1-10). More samples = better detection accuracy, slightly slower sweep.
+- **Default:** 3
+- Use **5** in noisy areas, **1** for maximum hopping speed.
+
+---
+
+### 14. `RxDwl:` — Reactive Dwell Time
+
+How long the Striker holds a hot channel before falling back to sweeping (5-200 ms).
+- **Default:** 20 ms
+- Use **50-100 ms** for steady targets, **10 ms** for fast frequency hoppers (FHSS).
+
+---
+
+### 15. `RxSwp:` — Reactive Sweep Mode
+
+Defines which channels the Scout scans in Reactive mode.
+- **PROTO (Default):** Scans only the current protocol / preset channel list (much faster, targeted).
+- **ALL:** Scans all 126 channels (0-125) (best when target protocol is unknown).
+
+---
+
+### 16. `HybSc:` — Hybrid Rescan Period
+
+Interval in milliseconds (300-5000 ms) at which Radio 2 briefly pauses to scan and lock onto the loudest channel.
+- **Default:** 1500 ms
+
+---
+
+### 17. `< Reset Defaults >`
 
 Wipes SPIFFS and restores factory settings. You'll see a confirmation popup.
 
 ---
 
-### 14. `[ Save & Exit ]`
+### 18. `[ Save & Exit ]`
 
 Writes current configuration to `/settings.bin` on SPIFFS. **Always press this when done.**
 
 ---
 
-### 15. `[ Back / Discard ]`
+### 19. `[ Back / Discard ]`
 
 Reloads settings from SPIFFS — discards unsaved changes and returns to main menu.
 
@@ -448,6 +486,149 @@ The NRF24L01+ has a **Received Power Detector (RPD)** register that latches HIGH
 - High threshold = selective, only strong signals
 
 > **Known limitation:** RPD is binary (signal present / not present), not a true RSSI value. It cannot distinguish between a weak WiFi packet and a strong WiFi packet.
+
+---
+
+## 🎯 New Modes Explained
+
+### How the Reactive Jammer Works
+
+```
+┌──────────────────┐    reports hot ch    ┌──────────────────┐
+│    RADIO 1       │  ───────────────►   │    RADIO 2       │
+│    (Scout)       │                     │    (Striker)     │
+│                  │                     │                  │
+│  • RX mode       │                     │  • TX const      │
+│  • Noise pipe    │                     │    carrier       │
+│  • PA=MIN        │                     │  • PA=from cfg   │
+│  • Hops fast     │                     │  • Locks onto    │
+│  • Tests RPD     │                     │    hot channel   │
+└──────────────────┘                     └──────────────────┘
+     scans ch N                              jams ch N
+     scans ch N+1                            holds N for dwell
+     scans ch N+2                            if no report: sweep
+```
+
+### Reactive Settings
+
+| Setting | What it does | Best value |
+| :--- | :--- | :--- |
+| **RxSmp** (1-10) | RPD samples per channel. More samples = better detection, slower scan. | **3** default. Use **5** in noisy areas, **1** for max speed. |
+| **RxDwl** (5-200ms) | How long the Striker holds a hot channel before falling back to sweeping. | **20ms** default. Use **50-100ms** for steady targets, **10ms** for FHSS. |
+| **RxSwp** (ALL/PROTO) | `ALL` = scan all 126 channels. `PROTO` = scan only the current protocol/preset list. | **PROTO** for focused jamming (faster), **ALL** for unknown targets. |
+
+### Which Channel List Does Reactive Use?
+
+Priority chain (same as blind modes):
+
+```
+1. Preset ON?      → uses the selected preset's channel list
+2. RxSwp = PROTO?  → uses Proto fallback (BT=79ch, BLE=40ch, WiFi=13ch, Drone=125ch)
+3. RxSwp = ALL?    → uses all 126 channels
+```
+
+### Recommended Configurations
+
+| Target | Settings |
+| :--- | :--- |
+| **BT speaker, known nearby** | Preset OFF, Proto=BT Classic, RxSwp=PROTO, RxSmp=3, RxDwl=30ms |
+| **BLE mouse/keyboard** | Preset ON, Preset Sel=BLE Adv Pri, RxSmp=5, RxDwl=50ms |
+| **WiFi router** | Preset ON, Preset Sel=WiFi Priority, RxSmp=3, RxDwl=100ms |
+| **Unknown / mixed** | Preset OFF, RxSwp=ALL, RxSmp=2, RxDwl=15ms |
+| **Drone** | Preset ON, Preset Sel=Drone FHSS, RxSmp=3, RxDwl=20ms |
+
+---
+
+### How To Use Reactive Mode
+
+1. Flash `JammerC-3.ino` to the ESP32-C3.
+2. On first boot, settings will reset (`0xCB05` magic mismatch → defaults). Go to **Settings → Save & Exit** once.
+3. From main menu, navigate to **Reactive JamX** (down from MultiCH).
+4. Press **SEL** — it starts scanning + reactive jamming.
+5. Press **SEL** again to stop.
+
+#### Behavior You'll Observe:
+- The Striker (**Radio 2**) will spend most of its time on channels that the Scout (**Radio 1**) detects as active.
+- If nothing is transmitting, the Striker sweeps randomly through the channel list to keep some pressure.
+- You won't see the display update during reactive mode (it would defeat the purpose), but you'll notice **huge real-world jamming efficiency** vs blind hopping.
+
+---
+
+### ⚠️ Known Limitations
+
+1. **Radio 1 can only listen on one channel at a time.** If a BT device hops every 625 µs and you scan one channel every ~600 µs, you'll catch ~50–70% of hops. This is still vastly better than blind hopping, which catches the correct channel ~1/79 of the time.
+2. **RPD is 1-bit.** It tells you "signal present > -64 dBm" or not. It doesn't tell you how strong. This is a hardware limitation of the NRF24L01+ — you'd need an SDR for true RSSI.
+3. **Striker keeps last channel until re-tasked.** If the target stops transmitting, the Striker sweeps randomly after `RxDwl` ms. Fine for keeping pressure up, but not stealthy.
+4. **The Scout stops transmitting entirely.** In reactive mode, the Scout never TX's — it's purely a receiver. Only the Striker jams. So you get 1 radio jamming instead of 2, but placed far more intelligently.
+
+---
+
+### 1. Hybrid JamX
+
+**Radio 1 (TX):** blind hops using preset / protocol / auto config — constantly.
+
+**Radio 2 (TX):** starts on channel 12, then every `HybSc` ms (default 1500ms):
+1. Pauses its const carrier
+2. Briefly switches to RX scout mode
+3. Tests 12 channels for RPD activity
+4. Locks onto the strongest detected channel
+5. Resumes const carrier on that channel
+
+**Both radios jam in parallel the entire time.** While Radio 1 covers the whole configured band, Radio 2 concentrates on the "hottest" active channel.
+
+---
+
+### 2. Channel Picker
+
+The exact workflow:
+
+```
+[SCAN]    →  scans 126 channels with both radios
+[SELECT]  →  shows top 10 detected channels with activity %
+             UP/DOWN navigates the list
+             SEL locks your choice
+[JAM]     →  BOTH radios lock onto that single channel
+             Both transmit const carrier indefinitely
+             Only SEL can stop it
+```
+
+---
+
+### 📖 How to Use Each Mode
+
+#### Hybrid JamX — "everything on"
+1. Optional: **Settings → Preset ON** → pick preset (Radio 1 will use this).
+2. Menu → **Hybrid JamX** → **SEL**.
+3. Radio 1 hops through the preset, Radio 2 locks onto whatever's loudest.
+4. **SEL** to stop.
+
+#### Channel Picker — "manual sniper"
+1. Menu → **Channel Picker** → **SEL**.
+2. Wait ~5 seconds while it scans.
+3. Screen shows detected hot channels:
+   ```
+   PICK CHANNEL
+   NRF 37    84%
+   NRF 12    62%
+   NRF 62    51%
+   NRF  6    18%
+   NRF 18    12%
+   UP/DN SEL=Lock
+   ```
+4. **UP/DOWN** to highlight the channel you want.
+5. **SEL** → screen shows: `"LOCKED JAM / NRF CH: 37 / Both radios TX"`.
+6. Both radios jam channel 37 **forever** until you press **SEL** again.
+
+---
+
+### ⚖️ Mode Comparison & Tradeoffs
+
+| Mode | Radios Jamming | Scanning | Best For |
+| :--- | :--- | :--- | :--- |
+| **Reactive** | 1 (R2) | Continuous (R1) | Stealth, single narrow target |
+| **Hybrid** | 2 (mostly) | Periodic ~200ms pause on R2 | Maximum pressure + adaptation |
+| **Channel Picker** | 2 (both) | Once at start | Known static target |
+| **Blind** | 2 | None | Unknown / mixed environment |
 
 ---
 

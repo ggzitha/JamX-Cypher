@@ -1022,7 +1022,7 @@ void displayTitleScreen() {
   display.clearDisplay();
   u8g2_for_adafruit_gfx.setFont(u8g2_font_adventurer_tr);
   u8g2_for_adafruit_gfx.setCursor(20, 40);
-  u8g2_for_adafruit_gfx.print("CYPHER BOX");
+  u8g2_for_adafruit_gfx.print("JamX BoX");
   display.display();
 }
 
@@ -1067,9 +1067,9 @@ void setup() {
   loadSettings();
 
   displayTitleScreen();
-  delay(1500);
+  delay(1000);
   displayInfoScreen();
-  delay(2000);
+  delay(1500);
 
   initRadios();
   delay(1200);
