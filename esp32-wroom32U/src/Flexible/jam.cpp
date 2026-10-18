@@ -1,4 +1,4 @@
-﻿#include "jam.h"
+#include "jam.h"
 
 int        nrf_pa_level;
 static int global_ch1, global_ch2;
@@ -738,6 +738,409 @@ void fpv_video_jam()
   vTaskDelete(NULL);
 }
 
+// ---------------------------------------------------------------------------
+// HID / Wireless Peripheral Jammers
+// ---------------------------------------------------------------------------
+
+// Logitech Unifying / Bolt receiver uses channels 2–72 (even channels only,
+// hopping pseudo-randomly).  We sweep all even channels in the lower 2.4 GHz
+// band to disrupt any 2.4 GHz HID dongle (Logitech, Microsoft Nano, etc.).
+void hid_wireless_jam()
+{
+  vTaskPrioritySet(NULL, 3);
+  // HID channels: even-numbered nRF24 channels covering 2402–2472 MHz
+  // (nRF24 ch 2 = 2402 MHz, ch 72 = 2472 MHz).
+  while ( !stopJam )
+  {
+    if ( Separate_or_together == 0 )
+    {
+      // Distribute even channels 2–72 across all radios (36 channels total).
+      int total_channels = 36;
+      int base           = total_channels / nrf24_count;
+      int rem            = total_channels % nrf24_count;
+      int start[30], count[30];
+      int idx = 0;
+      for ( int j = 0; j < nrf24_count; j++ )
+      {
+        count[j] = base + (j < rem ? 1 : 0);
+        start[j] = idx;
+        idx += count[j];
+      }
+      int max_count = base + (rem > 0 ? 1 : 0);
+      for ( int i = 0; i < max_count; i++ )
+      {
+        for ( int j = 0; j < nrf24_count; j++ )
+        {
+          if ( i < count[j] )
+          {
+            int ch = 2 + (start[j] + i) * 2; // even channels: 2,4,6,...,72
+            radios[j]->setChannel(ch);
+            radios[j]->writeFast(&jam_text, sizeof(jam_text));
+          }
+        }
+        delayMicroseconds(jam_delay);
+      }
+    }
+    else
+    {
+      for ( int ch = 2; ch <= 72; ch += 2 )
+      {
+        for ( int j = 0; j < nrf24_count; j++ )
+        {
+          radios[j]->setChannel(ch);
+          radios[j]->writeFast(&jam_text, sizeof(jam_text));
+        }
+        delayMicroseconds(jam_delay);
+      }
+    }
+  }
+  vTaskDelete(NULL);
+}
+
+// Logitech Unifying protocol uses a specific subset of 25 channels derived
+// from the paired receiver's address.  We target the known set that covers
+// all Unifying/Bolt devices regardless of address: ch 5,8,11,...,74 (step 3).
+void logitech_unifying_jam()
+{
+  vTaskPrioritySet(NULL, 3);
+  // 25 channels, step = 3, starting at 5: 5,8,11,...,77
+  static const uint8_t unifying_chs[] = {
+      5, 8, 11, 14, 17, 20, 23, 26, 29, 32,
+      35, 38, 41, 44, 47, 50, 53, 56, 59, 62,
+      65, 68, 71, 74, 77
+  };
+  const int total = sizeof(unifying_chs);
+
+  while ( !stopJam )
+  {
+    if ( Separate_or_together == 0 )
+    {
+      int base = total / nrf24_count;
+      int rem  = total % nrf24_count;
+      int start[30], count[30], idx = 0;
+      for ( int j = 0; j < nrf24_count; j++ )
+      {
+        count[j] = base + (j < rem ? 1 : 0);
+        start[j] = idx;
+        idx += count[j];
+      }
+      int max_count = base + (rem > 0 ? 1 : 0);
+      for ( int i = 0; i < max_count; i++ )
+      {
+        for ( int j = 0; j < nrf24_count; j++ )
+        {
+          if ( i < count[j] )
+          {
+            radios[j]->setChannel(unifying_chs[start[j] + i]);
+            radios[j]->writeFast(&jam_text, sizeof(jam_text));
+          }
+        }
+        delayMicroseconds(jam_delay);
+      }
+    }
+    else
+    {
+      for ( int i = 0; i < total; i++ )
+      {
+        for ( int j = 0; j < nrf24_count; j++ )
+        {
+          radios[j]->setChannel(unifying_chs[i]);
+          radios[j]->writeFast(&jam_text, sizeof(jam_text));
+        }
+        delayMicroseconds(jam_delay);
+      }
+    }
+  }
+  vTaskDelete(NULL);
+}
+
+// Microsoft 2.4 GHz wireless mouse/keyboard dongles hop in the range ch 2–80
+// using a narrow band around a base channel.  We sweep ch 2–80 with the
+// 2 Mbps data rate (same as the hardware) to maximise interference.
+void ms_wireless_jam()
+{
+  vTaskPrioritySet(NULL, 3);
+  while ( !stopJam )
+  {
+    if ( Separate_or_together == 0 )
+    {
+      int total_channels = 79;
+      int base           = total_channels / nrf24_count;
+      int rem            = total_channels % nrf24_count;
+      int start[30], count[30], idx = 0;
+      for ( int j = 0; j < nrf24_count; j++ )
+      {
+        count[j] = base + (j < rem ? 1 : 0);
+        start[j] = idx;
+        idx += count[j];
+      }
+      int max_count = base + (rem > 0 ? 1 : 0);
+      for ( int i = 0; i < max_count; i++ )
+      {
+        for ( int j = 0; j < nrf24_count; j++ )
+        {
+          if ( i < count[j] )
+          {
+            radios[j]->setChannel(2 + start[j] + i);
+            radios[j]->writeFast(&jam_text, sizeof(jam_text));
+          }
+        }
+        delayMicroseconds(jam_delay);
+      }
+    }
+    else
+    {
+      for ( int ch = 2; ch <= 80; ch++ )
+      {
+        for ( int j = 0; j < nrf24_count; j++ )
+        {
+          radios[j]->setChannel(ch);
+          radios[j]->writeFast(&jam_text, sizeof(jam_text));
+        }
+        delayMicroseconds(jam_delay);
+      }
+    }
+  }
+  vTaskDelete(NULL);
+}
+
+// ---------------------------------------------------------------------------
+// RF Controller Jammers
+// ---------------------------------------------------------------------------
+
+// Generic 2.4 GHz RC / hobby controller (FlySky AFHDS, Spektrum DSM2/DSMX,
+// FrSky D8/D16, Graupner FHSS, Radiolink, etc.) all hop across different
+// subsets of ch 0–125.  A full-band sweep at high speed is the most effective
+// approach when the hopping pattern is unknown.
+void rc_controller_jam()
+{
+  vTaskPrioritySet(NULL, 3);
+  while ( !stopJam )
+  {
+    if ( Separate_or_together == 0 )
+    {
+      // Distribute ch 0–125 across all radios.
+      int total_channels = 126;
+      int base           = total_channels / nrf24_count;
+      int rem            = total_channels % nrf24_count;
+      int start[30], count[30], idx = 0;
+      for ( int j = 0; j < nrf24_count; j++ )
+      {
+        count[j] = base + (j < rem ? 1 : 0);
+        start[j] = idx;
+        idx += count[j];
+      }
+      int max_count = base + (rem > 0 ? 1 : 0);
+      for ( int i = 0; i < max_count; i++ )
+      {
+        for ( int j = 0; j < nrf24_count; j++ )
+        {
+          if ( i < count[j] )
+          {
+            radios[j]->setChannel(start[j] + i);
+            radios[j]->writeFast(&jam_text, sizeof(jam_text));
+          }
+        }
+        delayMicroseconds(jam_delay);
+      }
+    }
+    else
+    {
+      for ( int ch = 0; ch <= 125; ch++ )
+      {
+        for ( int j = 0; j < nrf24_count; j++ )
+        {
+          radios[j]->setChannel(ch);
+          radios[j]->writeFast(&jam_text, sizeof(jam_text));
+        }
+        delayMicroseconds(jam_delay);
+      }
+    }
+  }
+  vTaskDelete(NULL);
+}
+
+// FlySky AFHDS-2A uses 16 pseudo-randomly selected channels from the band.
+// Sweep the known AFHDS-2A candidate channel set (ch 10–140 step 5 mapped to
+// nRF24 0–125 range) to cover most bindings.
+void flysky_jam()
+{
+  vTaskPrioritySet(NULL, 3);
+  // Representative AFHDS-2A hop set (nRF24 channel numbers 0-125).
+  // Actual set depends on TX ID but these cover the most common pairings.
+  static const uint8_t flysky_chs[] = {
+      0, 5, 10, 15, 20, 25, 30, 35, 40, 45,
+      50, 55, 60, 65, 70, 75, 80, 85, 90, 95,
+      100, 105, 110, 115, 120, 125
+  };
+  const int total = sizeof(flysky_chs);
+
+  while ( !stopJam )
+  {
+    if ( Separate_or_together == 0 )
+    {
+      int base = total / nrf24_count;
+      int rem  = total % nrf24_count;
+      int start[30], count[30], idx = 0;
+      for ( int j = 0; j < nrf24_count; j++ )
+      {
+        count[j] = base + (j < rem ? 1 : 0);
+        start[j] = idx;
+        idx += count[j];
+      }
+      int max_count = base + (rem > 0 ? 1 : 0);
+      for ( int i = 0; i < max_count; i++ )
+      {
+        for ( int j = 0; j < nrf24_count; j++ )
+        {
+          if ( i < count[j] )
+          {
+            radios[j]->setChannel(flysky_chs[start[j] + i]);
+            radios[j]->writeFast(&jam_text, sizeof(jam_text));
+          }
+        }
+        delayMicroseconds(jam_delay);
+      }
+    }
+    else
+    {
+      for ( int i = 0; i < total; i++ )
+      {
+        for ( int j = 0; j < nrf24_count; j++ )
+        {
+          radios[j]->setChannel(flysky_chs[i]);
+          radios[j]->writeFast(&jam_text, sizeof(jam_text));
+        }
+        delayMicroseconds(jam_delay);
+      }
+    }
+  }
+  vTaskDelete(NULL);
+}
+
+// Spektrum DSM2/DSMX hops 2 (DSM2) or 23 (DSMX) channels in the range
+// 0–79.  Sweep that window.
+void spektrum_jam()
+{
+  vTaskPrioritySet(NULL, 3);
+  while ( !stopJam )
+  {
+    if ( Separate_or_together == 0 )
+    {
+      int total_channels = 80;
+      int base           = total_channels / nrf24_count;
+      int rem            = total_channels % nrf24_count;
+      int start[30], count[30], idx = 0;
+      for ( int j = 0; j < nrf24_count; j++ )
+      {
+        count[j] = base + (j < rem ? 1 : 0);
+        start[j] = idx;
+        idx += count[j];
+      }
+      int max_count = base + (rem > 0 ? 1 : 0);
+      for ( int i = 0; i < max_count; i++ )
+      {
+        for ( int j = 0; j < nrf24_count; j++ )
+        {
+          if ( i < count[j] )
+          {
+            radios[j]->setChannel(start[j] + i);
+            radios[j]->writeFast(&jam_text, sizeof(jam_text));
+          }
+        }
+        delayMicroseconds(jam_delay);
+      }
+    }
+    else
+    {
+      for ( int ch = 0; ch <= 79; ch++ )
+      {
+        for ( int j = 0; j < nrf24_count; j++ )
+        {
+          radios[j]->setChannel(ch);
+          radios[j]->writeFast(&jam_text, sizeof(jam_text));
+        }
+        delayMicroseconds(jam_delay);
+      }
+    }
+  }
+  vTaskDelete(NULL);
+}
+
+// FrSky D8 uses 8 fixed channels; D16 / ACCESS uses 64 channels.
+// Sweep ch 0–100 (covers all FrSky bands including LBT channels).
+void frsky_jam()
+{
+  vTaskPrioritySet(NULL, 3);
+  while ( !stopJam )
+  {
+    if ( Separate_or_together == 0 )
+    {
+      int total_channels = 101;
+      int base           = total_channels / nrf24_count;
+      int rem            = total_channels % nrf24_count;
+      int start[30], count[30], idx = 0;
+      for ( int j = 0; j < nrf24_count; j++ )
+      {
+        count[j] = base + (j < rem ? 1 : 0);
+        start[j] = idx;
+        idx += count[j];
+      }
+      int max_count = base + (rem > 0 ? 1 : 0);
+      for ( int i = 0; i < max_count; i++ )
+      {
+        for ( int j = 0; j < nrf24_count; j++ )
+        {
+          if ( i < count[j] )
+          {
+            radios[j]->setChannel(start[j] + i);
+            radios[j]->writeFast(&jam_text, sizeof(jam_text));
+          }
+        }
+        delayMicroseconds(jam_delay);
+      }
+    }
+    else
+    {
+      for ( int ch = 0; ch <= 100; ch++ )
+      {
+        for ( int j = 0; j < nrf24_count; j++ )
+        {
+          radios[j]->setChannel(ch);
+          radios[j]->writeFast(&jam_text, sizeof(jam_text));
+        }
+        delayMicroseconds(jam_delay);
+      }
+    }
+  }
+  vTaskDelete(NULL);
+}
+
+// ---------------------------------------------------------------------------
+// BLE attack wrapper task functions (bridge to ble_attack.cpp via FreeRTOS)
+// These are called through jamHandler so they run as a pinned task and respect
+// the existing stop / button-exit infrastructure.
+// ---------------------------------------------------------------------------
+#include "ble_attack.h"
+
+void ble_apple_flood_task()
+{
+  apple_ble_flood(); // calls vTaskDelete(NULL) internally
+}
+
+void ble_adv_flood_task()
+{
+  ble_adv_flood(); // calls vTaskDelete(NULL) internally
+}
+
+void ble_scan_flood_task()
+{
+  ble_scan_flood(); // calls vTaskDelete(NULL) internally
+}
+
+// ---------------------------------------------------------------------------
+// jamHandler
+// ---------------------------------------------------------------------------
 bool jamHandler(void (*action)(), String htmlResponse, const unsigned char *bitmap, bool CW, bool mode, bool isMisc, bool scan, int ch1, int ch2)
 {
   (void)htmlResponse;

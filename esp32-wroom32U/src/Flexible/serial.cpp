@@ -249,12 +249,14 @@ bool handleJamCommand(String *args, int argCount, bool web_command, String &resp
   if ( argCount == 1 )
   {
     printLine("", response, web_command);
-    printCmd("bt", "Bluetooth jammer", response, web_command);
-    printCmd("drone", "Drone jammer", response, web_command);
-    printCmd("wifi", "WiFi jammer", response, web_command);
-    printCmd("ble", "BLE jammer", response, web_command);
-    printCmd("zigbee", "Zigbee jammer", response, web_command);
-    printCmd("misc", "Custom channel range", response, web_command);
+    printCmd("bt",      "Bluetooth jammer", response, web_command);
+    printCmd("drone",   "Drone jammer", response, web_command);
+    printCmd("wifi",    "WiFi jammer", response, web_command);
+    printCmd("ble",     "BLE jammer", response, web_command);
+    printCmd("zigbee",  "Zigbee jammer", response, web_command);
+    printCmd("misc",    "Custom channel range", response, web_command);
+    printCmd("hid",     "HID / Wireless peripheral jammer (Logitech, MS)", response, web_command);
+    printCmd("rc",      "RC / Hobby controller jammer (FlySky, Spektrum, FrSky)", response, web_command);
     printLine("", response, web_command);
     return true;
   }
@@ -443,6 +445,92 @@ bool handleJamCommand(String *args, int argCount, bool web_command, String &resp
     return true;
   }
 
+  // ---- HID / Wireless Peripheral jammers ----
+  if ( sub == "hid" )
+  {
+    if ( argCount == 2 )
+    {
+      printLine("", response, web_command);
+      printCmd("all",      "Generic 2.4 GHz HID dongle sweep (ch 2-72 even)", response, web_command);
+      printCmd("logitech", "Logitech Unifying / Bolt 25-channel set", response, web_command);
+      printCmd("ms",       "Microsoft 2.4 GHz wireless HID (ch 2-80)", response, web_command);
+      printLine("", response, web_command);
+      return true;
+    }
+    String hidSub = args[2];
+    hidSub.toLowerCase();
+    if ( hidSub == "all" )
+    {
+      printLine("Starting HID wireless jammer...", response, web_command);
+      if ( web_command ) server.send(200, "text/html", response + "ok\n");
+      jamHandler(hid_wireless_jam, "HID Jamming", decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_misc_jammer_64 : bitmap_misc_jammer_32), false, false);
+      return true;
+    }
+    if ( hidSub == "logitech" )
+    {
+      printLine("Starting Logitech Unifying jammer...", response, web_command);
+      if ( web_command ) server.send(200, "text/html", response + "ok\n");
+      jamHandler(logitech_unifying_jam, "Logitech Jamming", decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_misc_jammer_64 : bitmap_misc_jammer_32), false, false);
+      return true;
+    }
+    if ( hidSub == "ms" || hidSub == "microsoft" )
+    {
+      printLine("Starting Microsoft wireless HID jammer...", response, web_command);
+      if ( web_command ) server.send(200, "text/html", response + "ok\n");
+      jamHandler(ms_wireless_jam, "MS HID Jamming", decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_misc_jammer_64 : bitmap_misc_jammer_32), false, false);
+      return true;
+    }
+    printLine("Unknown HID mode. Type 'jam hid' for list", response, web_command);
+    return true;
+  }
+
+  // ---- RC / Hobby Controller jammers ----
+  if ( sub == "rc" )
+  {
+    if ( argCount == 2 )
+    {
+      printLine("", response, web_command);
+      printCmd("all",      "Full-band RC sweep ch 0-125", response, web_command);
+      printCmd("flysky",   "FlySky AFHDS-2A hop channels", response, web_command);
+      printCmd("spektrum", "Spektrum DSM2/DSMX (ch 0-79)", response, web_command);
+      printCmd("frsky",    "FrSky D8/D16/ACCESS (ch 0-100)", response, web_command);
+      printLine("", response, web_command);
+      return true;
+    }
+    String rcSub = args[2];
+    rcSub.toLowerCase();
+    if ( rcSub == "all" )
+    {
+      printLine("Starting full-band RC controller jammer...", response, web_command);
+      if ( web_command ) server.send(200, "text/html", response + "ok\n");
+      jamHandler(rc_controller_jam, "RC Jamming", decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_drone_jammer_64 : bitmap_drone_jammer_32), false, false);
+      return true;
+    }
+    if ( rcSub == "flysky" )
+    {
+      printLine("Starting FlySky AFHDS-2A jammer...", response, web_command);
+      if ( web_command ) server.send(200, "text/html", response + "ok\n");
+      jamHandler(flysky_jam, "FlySky Jamming", decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_drone_jammer_64 : bitmap_drone_jammer_32), false, false);
+      return true;
+    }
+    if ( rcSub == "spektrum" )
+    {
+      printLine("Starting Spektrum DSM2/DSMX jammer...", response, web_command);
+      if ( web_command ) server.send(200, "text/html", response + "ok\n");
+      jamHandler(spektrum_jam, "Spektrum Jamming", decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_drone_jammer_64 : bitmap_drone_jammer_32), false, false);
+      return true;
+    }
+    if ( rcSub == "frsky" )
+    {
+      printLine("Starting FrSky jammer...", response, web_command);
+      if ( web_command ) server.send(200, "text/html", response + "ok\n");
+      jamHandler(frsky_jam, "FrSky Jamming", decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_drone_jammer_64 : bitmap_drone_jammer_32), false, false);
+      return true;
+    }
+    printLine("Unknown RC mode. Type 'jam rc' for list", response, web_command);
+    return true;
+  }
+
   printLine("Unknown jam mode Type 'jam' for list", response, web_command);
   return true;
 }
@@ -453,6 +541,7 @@ bool handleAttackCommand(String *args, int argCount, bool web_command, String &r
   {
     printLine("", response, web_command);
     printCmd("wifi", "WiFi attacks", response, web_command);
+    printCmd("ble",  "BLE attacks (Apple Continuity, adv flood, scan flood)", response, web_command);
     printLine("", response, web_command);
     return true;
   }
@@ -577,6 +666,57 @@ bool handleAttackCommand(String *args, int argCount, bool web_command, String &r
     }
 
     printLine("Unknown attack option type 'attack wifi' for list", response, web_command);
+    return true;
+  }
+
+  // ---- BLE attacks (using ESP32 built-in radio via NimBLE) ----
+  if ( sub == "ble" )
+  {
+    if ( argCount == 2 )
+    {
+      printLine("", response, web_command);
+      printCmd("apple", "Apple BLE Continuity flood (AirDrop/Handoff/Nearby popups)", response, web_command);
+      printCmd("adv",   "Generic BLE advertisement flood (random MACs, max rate)", response, web_command);
+      printCmd("scan",  "BLE scan + advertise flood (disrupts connection setup)", response, web_command);
+      printLine("", response, web_command);
+      return true;
+    }
+
+    String bleSub = args[2];
+    bleSub.toLowerCase();
+
+    if ( bleSub == "apple" )
+    {
+      printLine("Starting Apple BLE Continuity flood...", response, web_command);
+      if ( web_command ) server.send(200, "text/html", response + "ok\n");
+      // BLE task wrappers do NOT need nRF24 modules; skip checkModules().
+      jamHandler(ble_apple_flood_task, "Apple BLE Flood",
+                 decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_ble_jammer_64 : bitmap_ble_jammer_32),
+                 false, false);
+      return true;
+    }
+
+    if ( bleSub == "adv" )
+    {
+      printLine("Starting BLE advertisement flood...", response, web_command);
+      if ( web_command ) server.send(200, "text/html", response + "ok\n");
+      jamHandler(ble_adv_flood_task, "BLE Adv Flood",
+                 decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_ble_jammer_64 : bitmap_ble_jammer_32),
+                 false, false);
+      return true;
+    }
+
+    if ( bleSub == "scan" )
+    {
+      printLine("Starting BLE scan + advertise flood...", response, web_command);
+      if ( web_command ) server.send(200, "text/html", response + "ok\n");
+      jamHandler(ble_scan_flood_task, "BLE Scan Flood",
+                 decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_ble_jammer_64 : bitmap_ble_jammer_32),
+                 false, false);
+      return true;
+    }
+
+    printLine("Unknown BLE attack. Type 'attack ble' for list", response, web_command);
     return true;
   }
 
