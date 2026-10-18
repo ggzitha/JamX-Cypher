@@ -1,0 +1,1135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        :root {
+            --bg-primary: #0d1117;
+            --bg-secondary: #161b22;
+            --bg-card: #21262d;
+            --border: #30363d;
+            --text-primary: #ffffff;
+            --text-secondary: #8b949e;
+            --accent: #58a6ff;
+            --danger: #f85149;
+            --warning: #f0883e;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+        }
+        
+        body {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .view {
+            display: none;
+            width: 100%;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            flex: 1;
+            padding: 20px;
+        }
+        
+        .view.active {
+            display: flex;
+            animation: fadeIn 0.4s ease-out forwards;
+        }
+        
+        .header-main {
+            width: 100%;
+            max-width: 800px;
+            padding: 30px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 30px;
+            margin-top: 20px;
+        }
+        
+        .logo {
+            height: 50px;
+            object-fit: contain;
+            animation: float 3s ease-in-out infinite;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0) scale(1); }
+            50% { transform: translateY(-5px) scale(1.02); }
+        }
+        
+        .btn {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        .btn:hover {
+            background: var(--accent);
+            border-color: var(--accent);
+            transform: translateY(-2px) scale(1.02);
+            box-shadow: 0 8px 20px rgba(88, 166, 255, 0.2);
+        }
+        
+        .btn-large {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+
+            padding: 16px 24px;
+            border-radius: 8px;
+            font-size: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            margin-bottom: 12px;
+        }
+
+        .btn-large:hover {
+            border-color: var(--accent);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(88, 166, 255, 0.15);
+        }
+        
+        .btn-large.action {
+            border-color: var(--accent);
+            justify-content: center;
+            gap: 8px;
+        }
+        
+        .btn-large.action:hover {
+            background: #4493f8;
+            border-color: #4493f8;
+        }
+        
+        .module-list {
+            width: 100%;
+            max-width: 800px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 40px;
+        }
+        
+        .module-item {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px 24px;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            opacity: 0;
+            transform: translateX(-20px);
+            animation: slideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+        
+        .module-item:nth-child(1) { animation-delay: 0.1s; }
+        .module-item:nth-child(2) { animation-delay: 0.15s; }
+        .module-item:nth-child(3) { animation-delay: 0.2s; }
+        .module-item:nth-child(4) { animation-delay: 0.25s; }
+        .module-item:nth-child(5) { animation-delay: 0.3s; }
+        .module-item:nth-child(6) { animation-delay: 0.35s; }
+        .module-item:nth-child(7) { animation-delay: 0.4s; }
+        
+        @keyframes slideIn {
+            to { opacity: 1; transform: translateX(0); }
+        }
+        
+        .module-item:hover {
+            border-color: var(--accent);
+            transform: translateX(8px) scale(1.02);
+            box-shadow: 0 6px 16px rgba(88, 166, 255, 0.15);
+        }
+        
+        .module-item.disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        
+        .module-item.disabled:hover {
+            transform: none;
+            border-color: var(--border);
+            box-shadow: none;
+        }
+        
+        .module-info {
+            flex: 1;
+        }
+        
+        .module-name {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        
+        .module-desc {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+        
+        .module-channels {
+            font-size: 13px;
+            color: var(--accent);
+            font-weight: 500;
+            padding: 4px 10px;
+            background: rgba(88, 166, 255, 0.1);
+            border-radius: 4px;
+            border: 1px solid rgba(88, 166, 255, 0.2);
+        }
+        
+        .config-warning {
+            background: rgba(240, 136, 62, 0.1);
+            border: 1px solid var(--warning);
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 20px;
+            display: none;
+            align-items: flex-start;
+            gap: 12px;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.9; }
+        }
+        
+        .warning-icon {
+            color: var(--warning);
+            font-size: 20px;
+        }
+        
+        .warning-title {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 4px;
+            color: var(--warning);
+        }
+        
+        .warning-text {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+        }
+        
+        .warning-btn {
+            background: var(--warning);
+            border: 1px solid var(--warning);
+            color: white;
+            padding: 6px 14px;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        .warning-btn:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+        
+        .sub-container {
+            width: 100%;
+            max-width: 500px;
+            padding: 30px;
+            border-radius: 12px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+        
+        .sub-header {
+            text-align: center;
+        }
+        
+        .method-info {
+            text-align: left;
+        }
+        
+        .method-name {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        
+        .method-desc {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+        
+        .back-btn {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            padding: 14px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            width: 100%;
+            margin-top: 10px;
+        }
+        
+        .back-btn:hover {
+            background: var(--bg-primary);
+            border-color: var(--accent);
+            transform: translateY(-2px);
+        }
+        
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            width: 100%;
+        }
+        
+        .input-row {
+            display: flex;
+            gap: 12px;
+            width: 100%;
+        }
+        
+        .input-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        
+        .input {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            padding: 14px 16px;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: all 0.2s;
+            width: 100%;
+        }
+        
+        .input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.2);
+        }
+        
+        .input.invalid {
+            border-color: var(--danger);
+            box-shadow: 0 0 0 2px rgba(248, 81, 73, 0.2);
+        }
+        
+        .label {
+            font-size: 14px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+        
+        .toggle {
+            display: inline-flex;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 9999px;
+            padding: 5px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+            margin: 0 auto;
+        }
+        
+        .toggle-btn {
+            padding: 10px 32px;
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            background: transparent;
+            border: none;
+            border-radius: 9999px;
+            cursor: pointer;
+            transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            white-space: nowrap;
+        }
+        
+        .toggle-btn.active {
+            color: var(--text-primary);
+            background: var(--accent);
+            box-shadow: 0 4px 14px rgba(88, 166, 255, 0.35);
+            transform: scale(1.05);
+        }
+        
+        .options {
+            display: flex;
+            flex-direction: column;
+            opacity: 1;
+            transform: translateY(0);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .options.hidden {
+            opacity: 0;
+            transform: translateY(12px);
+            display: none;
+        }
+
+        .channel-display-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .channel-display {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            padding: 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            text-align: center;
+            flex: 1;
+            display: none;
+        }
+        
+        .rescan-btn {
+            background: var(--bg-card);
+            border: 1px solid var(--accent);
+            color: var(--text-primary);
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            display: none;
+            white-space: nowrap;
+        }
+        
+        .rescan-btn:hover {
+            background: var(--accent);
+            border-color: var(--accent);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(88, 166, 255, 0.2);
+        }
+
+        #ssidListContainer {
+            margin-top: 15px;
+        }
+
+        #ssidList {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-size: 14px;
+            color: var(--text-primary);
+        }
+        
+        .notification {
+            position: fixed;
+            top: -100px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 14px 24px;
+            border-radius: 0 0 8px 8px;
+            color: white;
+            font-weight: 500;
+            z-index: 3000;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+            transition: top 0.5s ease-out;
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+            opacity: 0;
+            animation: notificationFadeIn 0.3s forwards;
+        }
+        
+        @keyframes notificationFadeIn {
+            to { opacity: 1; }
+        }
+        
+        .success { background: linear-gradient(135deg, var(--accent), #2ea043); }
+        .error { background: linear-gradient(135deg, var(--danger), #da3633); }
+        
+        .confirm-dialog {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            z-index: 2000;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            width: 90%;
+            max-width: 400px;
+            display: none;
+            opacity: 0;
+            animation: dialogFadeIn 0.3s forwards;
+        }
+        
+        @keyframes dialogFadeIn { to { opacity: 1; } }
+        
+        .confirm-dialog h3 {
+            margin-bottom: 16px;
+            font-size: 18px;
+        }
+        
+        .confirm-dialog p {
+            margin-bottom: 24px;
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+        
+        .confirm-buttons {
+            display: flex;
+            gap: 12px;
+        }
+        
+        .confirm-btn {
+            flex: 1;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+            border: none;
+        }
+        
+        .confirm-btn.cancel {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+        }
+        
+        .confirm-btn.cancel:hover {
+            background: var(--bg-primary);
+            border-color: var(--accent);
+        }
+        
+        .confirm-btn.accept {
+            background: var(--accent);
+            border: 1px solid var(--accent);
+            color: white;
+        }
+        
+        .confirm-btn.accept:hover {
+            background: #4493f8;
+            border-color: #4493f8;
+        }
+        
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1999;
+            display: none;
+            opacity: 0;
+            animation: overlayFadeIn 0.3s forwards;
+        }
+        
+        @keyframes overlayFadeIn { to { opacity: 1; } }
+        
+        @media (max-width: 768px) {
+            .view { padding: 15px; }
+            .header-main { padding: 20px 0; margin-bottom: 20px; flex-direction: column; gap: 15px; }
+            .logo { height: 40px; }
+            .module-list { gap: 10px; margin-bottom: 30px; }
+            .module-item { padding: 16px; }
+            .sub-container { padding: 20px; }
+        }
+        
+        @media (max-width: 480px) {
+            .view { padding: 10px; }
+            .header-main { padding: 15px 0; margin-bottom: 15px; }
+            .logo { height: 35px; }
+            .btn { padding: 10px 16px; font-size: 13px; }
+            .module-item { padding: 14px; }
+            .module-name { font-size: 15px; }
+            .module-desc { font-size: 12px; }
+            .toggle-btn { padding: 10px 20px; font-size: 13px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="notification" class="notification" style="display: none;"></div>
+    <div id="overlay" class="overlay" style="display: none;"></div>
+    <div id="confirmDialog" class="confirm-dialog" style="display: none;">
+        <h3 id="confirmTitle">Confirm Action</h3>
+        <p id="confirmMessage">Are you sure you want to perform this action?</p>
+        <div class="confirm-buttons">
+            <button class="confirm-btn cancel" onclick="hideConfirmDialog()">Cancel</button>
+            <button class="confirm-btn accept" onclick="confirmAction()">Confirm</button>
+        </div>
+    </div>
+
+    <div id="view-main" class="view active">
+        <div class="header-main">
+            <img src="data:image/png;base64,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" class="logo"></img>
+            <div>
+                <a href="/settings" class="btn">Settings</a>
+                <a href="/web_serial" class="btn">Web Serial</a>
+                <a href="/OTA" class="btn">OTA Update</a>
+            </div>
+        </div>
+
+        <div class="module-list">
+            <div class="config-warning" id="modulesWarning">
+                <div class="warning-icon">⚠️</div>
+                <div>
+                    <div class="warning-title">Modules Not Configured</div>
+                    <div class="warning-text">nRF24 radio modules are not configured. Please set up module pins before using jammers</div>
+                    <a href="/settings" class="warning-btn">Configure nRF24 Modules</a>
+                </div>
+            </div>
+
+            <div class="module-item" onclick="location.href='/bluetooth_jam'">
+                <div class="module-info">
+                    <div class="module-name">Bluetooth Jammer</div>
+                    <div class="module-desc">Jams all Bluetooth devices in range</div>
+                </div>
+                <div class="module-channels" id="btChannelsCount">—</div>
+            </div>
+
+            <div class="module-item" onclick="location.href='/drone_jam'">
+                <div class="module-info">
+                    <div class="module-name">Drone Jammer</div>
+                    <div class="module-desc">Full-spectrum jammer (0-125 channels)</div>
+                </div>
+                <div class="module-channels">125 channels</div>
+            </div>
+
+            <div class="module-item" onclick="showView('view-wifi-main')">
+                <div class="module-info">
+                    <div class="module-name">WiFi Attack</div>
+                    <div class="module-desc">Jam all or specific wifi channels on 2.4 GHz</div>
+                </div>
+                <div class="module-channels">13 channels</div>
+            </div>
+
+            <div class="module-item" onclick="showView('view-ble')">
+                <div class="module-info">
+                    <div class="module-name">BLE Jammer</div>
+                    <div class="module-desc">Jams Bluetooth Low Energy devices</div>
+                </div>
+                <div class="module-channels">40 channels</div>
+            </div>
+
+            <div class="module-item" onclick="location.href='/zigbee_jam'">
+                <div class="module-info">
+                    <div class="module-name">Zigbee Jammer</div>
+                    <div class="module-desc">Jams Zigbee protocol devices</div>
+                </div>
+                <div class="module-channels">16 channels</div>
+            </div>
+
+            <div class="module-item" onclick="showView('view-misc')">
+                <div class="module-info">
+                    <div class="module-name">Misc Jammer</div>
+                    <div class="module-desc">Custom channel range (0-125)</div>
+                </div>
+                <div class="module-channels">0-125 range</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="view-ble" class="view">
+        <div class="sub-container">
+            <div class="sub-header">
+                <h1>BLE Jamming Mode</h1>
+            </div>
+            
+            <div>
+                <button class="btn-large" onclick="location.href='/ble_advertising_jam'">
+                    <div class="method-info">
+                        <div class="method-name">Jam Advertising Channels</div>
+                        <div class="method-desc">Interfere with the three primary BLE advertising channels</div>
+                    </div>
+                </button>
+                <button class="btn-large" onclick="location.href='/ble_data_jam'">
+                    <div class="method-info">
+                        <div class="method-name">Jam Data Channels</div>
+                        <div class="method-desc">Interfere with all BLE data transmission channels</div>
+                    </div>
+                </button>
+            </div>
+            
+            <button class="back-btn" onclick="showView('view-main')">← Back to Main Menu</button>
+        </div>
+    </div>
+
+    <div id="view-misc" class="view">
+        <div class="sub-container">
+            <div class="sub-header">
+                <h1>Custom Channel Range</h1>
+            </div>
+
+            <div class="input-group">
+                <div class="input-row">
+                    <div class="input-wrapper">
+                        <label class="label" for="startInput">Start Channel</label>
+                        <input id="startInput" class="input" type="number" placeholder="0" max="125" min="0" />
+                    </div>
+
+                    <div class="input-wrapper">
+                        <label class="label" for="stopInput">Stop Channel</label>
+                        <input id="stopInput" class="input" type="number" placeholder="125" max="125" min="0" />
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <button class="btn-large action" onclick="validateAndRedirectMisc()">Start Jamming</button>
+                <button class="back-btn" onclick="showView('view-main')">← Back to Main Menu</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="view-wifi-main" class="view">
+        <div class="sub-container">
+            <div class="sub-header">
+                <h1>WiFi Attack Mode</h1>
+            </div>
+
+            <div class="toggle" id="modeToggle">
+                <button id="jamBtn" class="toggle-btn active" onclick="switchMode('jam')">Jam</button>
+                <button id="deauthBtn" class="toggle-btn" onclick="switchMode('deauth')">Deauth</button>
+                <button id="spamBtn" class="toggle-btn" onclick="switchMode('spam')">Spam</button>
+            </div>
+
+            <div id="jamOptions" class="options">
+                <button class="btn-large" onclick="location.href='/wifi_jam'">
+                    <div class="method-info">
+                        <div class="method-name">Jam All Channels</div>
+                        <div class="method-desc">Interfere with all WiFi frequencies simultaneously</div>
+                    </div>
+                </button>
+                <button class="btn-large" onclick="showView('view-wifi-jam-channel')">
+                    <div class="method-info">
+                        <div class="method-name">Select Channel To Jam</div>
+                        <div class="method-desc">Target specific WiFi channel (1-14)</div>
+                    </div>
+                </button>
+                <button class="btn-large" onclick="location.href='/wifi_scan_jam'">
+                    <div class="method-info">
+                        <div class="method-name">Smart Jam</div>
+                        <div class="method-desc">Scan for active networks and jam only their</div>
+                    </div>
+                </button>
+            </div>
+
+            <div id="deauthOptions" class="options hidden">
+                <button class="btn-large" onclick="location.href='/wifi_deauth_all'">
+                    <div class="method-info">
+                        <div class="method-name">Deauth All Channels</div>
+                        <div class="method-desc">Disconnect all WiFi clients from every AP</div>
+                    </div>
+                </button>
+                <button class="btn-large" onclick="showView('view-wifi-deauth-channel')">
+                    <div class="method-info">
+                        <div class="method-name">Select Channel To Deauth</div>
+                        <div class="method-desc">Target specific WiFi channel (1-14)</div>
+                    </div>
+                </button>
+                <button class="btn-large" onclick="location.href='/wifi_deauth_scan'">
+                    <div class="method-info">
+                        <div class="method-name">Smart Deauth</div>
+                        <div class="method-desc">Scan for active channels and deauth only their</div>
+                    </div>
+                </button>
+            </div>
+
+            <div id="spamOptions" class="options hidden">
+                <button class="btn-large" onclick="location.href='/wifi_random_spam'">
+                    <div class="method-info">
+                        <div class="method-name">Random Beacon Spam</div>
+                        <div class="method-desc">Spam with randomly generated SSIDs</div>
+                    </div>
+                </button>
+                <button class="btn-large" onclick="location.href='/wifi_array_spam'">
+                    <div class="method-info">
+                        <div class="method-name">Array Beacon Spam</div>
+                        <div class="method-desc">Spam using SSIDs from the predefined list in settings</div>
+                    </div>
+                </button>
+            </div>
+            
+            <button class="back-btn" onclick="showView('view-main')">← Back to Main Menu</button>
+        </div>
+    </div>
+
+    <div id="view-wifi-jam-channel" class="view">
+        <div class="sub-container">
+            <div class="sub-header">
+                <h1>Select WiFi Channel</h1>
+            </div>
+
+            <div class="input-group">
+                <label class="label" for="channelInput">Channel Number (1-14)</label>
+                <input id="channelInput_Jam" class="input" type="number" placeholder="Enter channel number" max="14" min="1" />
+                <div class="channel-display-container">
+                    <div id="channelDisplay_Jam" class="channel-display"></div>
+                    <button id="rescanBtn_Jam" class="rescan-btn" onclick="showUpdateConfirm()">Rescan</button>
+                </div>
+                <div id="ssidListContainer_Jam" style="display: none;">
+                    <label class="label">Access Points on this channel:</label>
+                    <div id="ssidList_Jam"></div>
+                </div>
+            </div>
+
+            <div>
+                <button class="btn-large action" onclick="validateAndRedirectWifiJam()">Start Attack</button>
+                <button class="back-btn" onclick="showView('view-wifi-main')">← Back to WiFi Selection</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="view-wifi-deauth-channel" class="view">
+        <div class="sub-container">
+            <div class="sub-header">
+                <h1>Select WiFi Channel</h1>
+            </div>
+
+            <div class="input-group">
+                <label class="label" for="channelInput">Channel Number (1-14)</label>
+                <input id="channelInput_Deauth" class="input" type="number" placeholder="Enter channel number" max="14" min="1" />
+                <div class="channel-display-container">
+                    <div id="channelDisplay_Deauth" class="channel-display"></div>
+                    <button id="rescanBtn_Deauth" class="rescan-btn" onclick="showUpdateConfirm()">Rescan</button>
+                </div>
+                <div id="ssidListContainer_Deauth" style="display: none;">
+                    <label class="label">Access Points on this channel:</label>
+                    <div id="ssidList_Deauth"></div>
+                </div>
+            </div>
+
+            <div>
+                <button class="btn-large action" onclick="validateAndRedirectWifiDeauth()">Start Attack</button>
+                <button class="back-btn" onclick="showView('view-wifi-main')">← Back to WiFi Selection</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function showView(viewId) {
+            document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+            document.getElementById(viewId).classList.add('active');
+        }
+
+        function showNotification(message, isSuccess = false) {
+            const notification = document.getElementById("notification");
+            notification.textContent = message;
+            notification.className = isSuccess ? "notification success" : "notification error";
+            notification.style.display = "block";
+
+            setTimeout(() => {
+                notification.style.top = "20px";
+            }, 10);
+
+            setTimeout(() => {
+                notification.style.top = "-100px";
+                setTimeout(() => {
+                    notification.style.display = "none";
+                }, 500);
+            }, 3000);
+        }
+
+        function validateAndRedirectMisc() {
+            const startInput = document.getElementById('startInput');
+            const stopInput = document.getElementById('stopInput');
+            const startValue = parseInt(startInput.value);
+            const stopValue = parseInt(stopInput.value);
+            let hasError = false;
+
+            startInput.classList.remove('invalid');
+            stopInput.classList.remove('invalid');
+
+            if (isNaN(startValue) || startValue < 0 || startValue > 125) {
+                showNotification('Start channel must be a number between 0 and 125.');
+                startInput.classList.add('invalid');
+                hasError = true;
+            }
+            
+            if (isNaN(stopValue) || stopValue < 0 || stopValue > 125) {
+                showNotification('Stop channel must be a number between 0 and 125.');
+                stopInput.classList.add('invalid');
+                hasError = true;
+            }
+            
+            if (!hasError && stopValue < startValue) {
+                showNotification('Stop channel must be greater than or equal to start channel.');
+                startInput.classList.add('invalid');
+                stopInput.classList.add('invalid');
+                hasError = true;
+            }
+
+            if (!hasError) {
+                location.href = `/misc_jam?start=${startValue}&stop=${stopValue}`;
+            }
+        }
+
+        function switchMode(mode) {
+            const jamBtn = document.getElementById('jamBtn');
+            const deauthBtn = document.getElementById('deauthBtn');
+            const spamBtn = document.getElementById('spamBtn');
+            const jamOptions = document.getElementById('jamOptions');
+            const deauthOptions = document.getElementById('deauthOptions');
+            const spamOptions = document.getElementById('spamOptions');
+
+            if (mode === 'jam') {
+                jamBtn.classList.add('active');
+                deauthBtn.classList.remove('active');
+                spamBtn.classList.remove('active');
+                
+                deauthOptions.classList.add('hidden');
+                spamOptions.classList.add('hidden');
+                jamOptions.classList.remove('hidden');
+            } else if (mode === 'deauth') {
+                deauthBtn.classList.add('active');
+                jamBtn.classList.remove('active');
+                spamBtn.classList.remove('active');
+                
+                jamOptions.classList.add('hidden');
+                spamOptions.classList.add('hidden');
+                deauthOptions.classList.remove('hidden');
+            } else {
+                spamBtn.classList.add('active');
+                deauthBtn.classList.remove('active');
+                jamBtn.classList.remove('active');
+
+                jamOptions.classList.add('hidden');
+                deauthOptions.classList.add('hidden');
+                spamOptions.classList.remove('hidden');
+            }
+        }
+
+        let wifiChannelCounts = new Array(14).fill(0);
+        let ssidsByChannel = [];
+
+        async function loadStatus() {
+            try {
+                const res = await fetch('/api/status', { cache: 'no-store' });
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const data = await res.json();
+
+                const bt = document.getElementById('btChannelsCount');
+                if (bt) bt.textContent = data.bt_channels_text || '—';
+
+                ssidsByChannel = data.ssids_by_channel || [];
+                wifiChannelCounts = data.wifi_channels || new Array(14).fill(0);
+
+                if ((data.nrf24_count || 0) <= 0) {
+                    document.getElementById('modulesWarning').style.display = 'flex';
+                    document.querySelectorAll('.module-item').forEach(item => {
+                        item.classList.add('disabled');
+                        item.onclick = () => alert('Please configure nRF24 modules first. Go to Settings → nRF24');
+                    });
+                }
+            } catch (e) {
+                console.error('Status load failed:', e);
+            }
+        }
+
+        window.addEventListener('load', loadStatus);
+        
+        let actionCallback = null;
+
+        function showConfirmDialog(title, message, callback) {
+            document.getElementById('confirmTitle').textContent = title;
+            document.getElementById('confirmMessage').textContent = message;
+            document.getElementById('overlay').style.display = 'block';
+            document.getElementById('confirmDialog').style.display = 'block';
+            actionCallback = callback;
+        }
+        
+        function hideConfirmDialog() {
+            document.getElementById('overlay').style.display = 'none';
+            document.getElementById('confirmDialog').style.display = 'none';
+            actionCallback = null;
+        }
+        
+        function confirmAction() {
+            if (actionCallback) actionCallback();
+            hideConfirmDialog();
+        }
+        
+        function showUpdateConfirm() {
+            showConfirmDialog(
+                "Rescan Wi-Fi APs",
+                "During the scanning process, the device will temporarily disconnect from the access point. Do you want to continue?",
+                startUpdateScan
+            );
+        }
+        
+        function startUpdateScan() {
+            showNotification("Starting WiFi scan... The device will temporarily disconnect.", true);
+            setTimeout(() => location.href = "/rescan", 1000);
+        }
+
+        function escapeHtml(unsafe) {
+            return unsafe.replace(/[&<>"]/g, function(m) {
+                if (m === '&') return '&amp;';
+                if (m === '<') return '&lt;';
+                if (m === '>') return '&gt;';
+                if (m === '"') return '&quot;';
+                return m;
+            });
+        }
+
+        function getChannelValue(channel) {
+            return wifiChannelCounts[channel - 1] || 0;
+        }
+
+        function updateChannelDisplay(channel, suffix) {
+            const display = document.getElementById('channelDisplay_' + suffix);
+            const rescanBtn = document.getElementById('rescanBtn_' + suffix);
+            const ssidContainer = document.getElementById('ssidListContainer_' + suffix);
+            const ssidList = document.getElementById('ssidList_' + suffix);
+
+            const channelValue = getChannelValue(channel);
+            display.innerHTML = `Channel ${channel} : ${channelValue} WiFi APs`;
+            display.style.display = 'block';
+            rescanBtn.style.display = 'block';
+
+            if (ssidsByChannel && ssidsByChannel[channel-1]) {
+                const ssids = ssidsByChannel[channel-1];
+                if (ssids.trim() !== '') {
+                    const lines = ssids.split('\n').filter(s => s.trim() !== '');
+                    if (lines.length > 0) {
+                        ssidList.innerHTML = lines.map(ssid => `<div>${escapeHtml(ssid)}</div>`).join('');
+                        ssidContainer.style.display = 'block';
+                        return;
+                    }
+                }
+            }
+            ssidContainer.style.display = 'none';
+        }
+
+        function validateAndRedirectWifiJam() {
+            const channelInput = document.getElementById('channelInput_Jam');
+            const channelValue = parseInt(channelInput.value);
+
+            channelInput.classList.remove('invalid');
+
+            if (isNaN(channelValue) || channelValue < 1 || channelValue > 14) {
+                showNotification('WiFi channel must be a number between 1 and 14.', false);
+                channelInput.classList.add('invalid');
+                return;
+            }
+            
+            location.href = `/wifi_selected_jam?channel=${channelValue}`;
+        }
+
+        function validateAndRedirectWifiDeauth() {
+            const channelInput = document.getElementById('channelInput_Deauth');
+            const channelValue = parseInt(channelInput.value);
+
+            channelInput.classList.remove('invalid');
+
+            if (isNaN(channelValue) || channelValue < 1 || channelValue > 14) {
+                showNotification('WiFi channel must be a number between 1 and 14.', false);
+                channelInput.classList.add('invalid');
+                return;
+            }
+            
+            location.href = `/wifi_selected_deauth?channel=${channelValue}`;
+        }
+
+        document.getElementById('channelInput_Jam').addEventListener('input', function(e) {
+            const channelValue = parseInt(this.value);
+            if (!isNaN(channelValue) && channelValue >= 1 && channelValue <= 14) {
+                updateChannelDisplay(channelValue, 'Jam');
+            } else {
+                document.getElementById('channelDisplay_Jam').style.display = 'none';
+                document.getElementById('rescanBtn_Jam').style.display = 'none';
+                document.getElementById('ssidListContainer_Jam').style.display = 'none';
+            }
+        });
+
+        document.getElementById('channelInput_Deauth').addEventListener('input', function(e) {
+            const channelValue = parseInt(this.value);
+            if (!isNaN(channelValue) && channelValue >= 1 && channelValue <= 14) {
+                updateChannelDisplay(channelValue, 'Deauth');
+            } else {
+                document.getElementById('channelDisplay_Deauth').style.display = 'none';
+                document.getElementById('rescanBtn_Deauth').style.display = 'none';
+                document.getElementById('ssidListContainer_Deauth').style.display = 'none';
+            }
+        });
+
+        window.addEventListener('load', function() {
+            const input = document.getElementById('channelInput_Jam');
+            if (input.value) {
+                const val = parseInt(input.value);
+                if (!isNaN(val) && val >= 1 && val <= 14) {
+                    updateChannelDisplay(val, 'Jam');
+                }
+            }
+        });
+
+        window.addEventListener('load', function() {
+            const input = document.getElementById('channelInput_Deauth');
+            if (input.value) {
+                const val = parseInt(input.value);
+                if (!isNaN(val) && val >= 1 && val <= 14) {
+                    updateChannelDisplay(val, 'Deauth');
+                }
+            }
+        });
+
+        document.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                if (document.getElementById('view-misc').classList.contains('active')) validateAndRedirectMisc();
+                if (document.getElementById('view-wifi-jam-channel').classList.contains('active')) validateAndRedirectWifiJam();
+                if (document.getElementById('view-wifi-deauth-channel').classList.contains('active')) validateAndRedirectWifiDeauth();
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Device Configuration</title>
+    <style>
+        :root {
+            --bg-primary: #0d1117;
+            --bg-secondary: #161b22;
+            --bg-card: #21262d;
+            --border: #30363d;
+            --text-primary: #ffffff;
+            --text-secondary: #8b949e;
+            --accent: #58a6ff;
+            --danger: #f85149;
+            --warning: #f0883e;
+            --success: #2ea043;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+        }
+
+        body {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            opacity: 0;
+            animation: fadeIn 0.6s ease-out forwards;
+        }
+
+        @keyframes fadeIn {
+            to { opacity: 1; }
+        }
+
+        .container {
+            width: 100%;
+            max-width: 600px;
+            padding: 30px;
+            border-radius: 12px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 5px;
+        }
+
+        .header h1 {
+            font-size: clamp(1.5rem, 4vw, 2rem);
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            width: 100%;
+        }
+
+        .tab-btn {
+            flex: 1;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            padding: 12px 5px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            text-align: center;
+        }
+
+        .tab-btn:hover {
+            background: var(--bg-secondary);
+            border-color: var(--accent);
+            color: var(--text-primary);
+            transform: translateY(-2px);
+        }
+
+        .tab-btn.active {
+            background: rgba(88, 166, 255, 0.1);
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .tab-content {
+            display: none;
+            animation: slideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+
+        .tab-content.active {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .section-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: -4px;
+        }
+
+        .options-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .option-btn {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            padding: 16px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            text-align: left;
+        }
+
+        .option-btn:disabled {
+            background: var(--bg-card);
+            border-color: var(--border);
+            border: none;
+            color: var(--text-secondary);
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .option-btn:hover {
+            background: var(--accent);
+            border-color: var(--accent);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(88, 166, 255, 0.2);
+        }
+
+        .option-btn.active {
+            border-color: var(--success);
+        }
+
+        .option-btn.active:hover {
+            background: var(--success);
+            border-color: var(--success);
+            box-shadow: 0 8px 20px rgba(46, 160, 67, 0.2);
+        }
+
+        .option-btn:disabled:hover {
+            background: var(--bg-card);
+            border-color: var(--border);
+            transform: none;
+            box-shadow: none;
+        }
+
+        .method-info { text-align: left; }
+        .method-name { font-size: 16px; font-weight: 600; margin-bottom: 4px; color: var(--text-primary); }
+        .method-desc { font-size: 13px; color: var(--text-secondary); transition: color 0.2s; }
+        
+        .option-btn:hover .method-desc, 
+        .option-btn.active:hover .method-desc {
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .modules-container {
+            max-height: 300px;
+            overflow-y: auto;
+            padding-right: 5px;
+        }
+        
+        .modules-container::-webkit-scrollbar { width: 6px; }
+        .modules-container::-webkit-scrollbar-track { background: var(--bg-card); border-radius: 3px; }
+        .modules-container::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+        .input-group {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            margin-bottom: 12px;
+            width: 100%;
+            animation: slideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-10px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        .input-wrapper { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+        .input-label { font-size: 12px; color: var(--text-secondary); font-weight: 500; height: 16px; line-height: 16px; }
+        
+        .input {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            padding: 14px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.2s;
+            width: 100%;
+            height: 48px;
+        }
+
+        .input:disabled {
+            background: var(--bg-primary);
+            opacity: 0.5;
+            cursor: not-allowed;
+            border-color: var(--border);
+        }
+
+        .text-center { text-align: center; }
+
+        .input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.2);
+        }
+
+        .checkbox-wrapper {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            user-select: none;
+            width: fit-content;
+        }
+
+        .checkbox-wrapper input {
+            display: none;
+        }
+
+        .checkmark {
+            width: 20px;
+            height: 20px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+        }
+
+        .checkbox-wrapper:hover .checkmark {
+            border-color: var(--accent);
+        }
+
+        .checkbox-wrapper input:checked + .checkmark {
+            background: var(--accent);
+            border-color: var(--accent);
+        }
+
+        .checkmark::after {
+            content: '';
+            width: 5px;
+            height: 10px;
+            border: solid var(--bg-primary);
+            border-width: 0 2px 2px 0;
+            transform: rotate(45deg) scale(0);
+            transition: transform 0.15s ease-in-out;
+            margin-bottom: 2px;
+        }
+
+        .checkbox-wrapper input:checked + .checkmark::after {
+            transform: rotate(45deg) scale(1);
+        }
+
+        .checkbox-label {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .btn-add {
+            background: var(--bg-card);
+            border: 1px solid var(--success);
+            color: white;
+            font-size: 15px;
+            padding: 16px 24px;
+            height: 48px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 500;
+        }
+
+        .btn-add:hover {
+            background: var(--success);
+            border-color: var(--success);
+            box-shadow: 0 8px 20px rgba(46, 160, 67, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .delete-btn {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            width: 48px; height: 48px;
+            border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; transition: all 0.25s; flex-shrink: 0; font-size: 20px;
+            margin-top: 16px;
+        }
+
+        .delete-btn:not(:disabled) { border-color: var(--danger); color: var(--danger); }
+        .delete-btn:not(:disabled):hover {
+            background: var(--danger); border-color: var(--danger); color: white;
+            transform: translateY(-2px); box-shadow: 0 8px 20px rgba(248, 81, 73, 0.2);
+        }
+        .delete-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+        .nrf-notice {
+            display: none;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 12px 14px;
+            margin-top: 10px;
+            border-radius: 8px;
+            background: rgba(240, 136, 62, 0.08);
+            border: 1px solid rgba(240, 136, 62, 0.45);
+            color: var(--warning);
+            font-family: ui-monospace, 'SFMono-Regular', 'JetBrains Mono',
+                         'Fira Code', 'Cascadia Code', Menlo, Consolas,
+                         'Liberation Mono', monospace;
+            font-size: 12.5px;
+            line-height: 1.55;
+            letter-spacing: 0.2px;
+            word-break: break-word;
+            animation: slideIn 0.35s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+
+        .nrf-notice-icon {
+            flex: 0 0 auto;
+            width: 18px;
+            height: 18px;
+            margin-top: 1px;
+            border-radius: 50%;
+            background: var(--warning);
+            color: var(--bg-primary);
+            font-size: 12px;
+            font-weight: 700;
+            line-height: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: 10px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border);
+        }
+
+        .back-btn {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            padding: 16px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 48px;
+        }
+
+        .back-btn:hover {
+            background: var(--bg-secondary);
+            border-color: var(--accent);
+            transform: translateY(-2px);
+        }
+
+        .notification {
+            position: fixed; top: -100px; left: 50%; transform: translateX(-50%);
+            padding: 14px 24px; border-radius: 0 0 8px 8px;
+            color: white; font-weight: 500; z-index: 1000;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+            transition: top 0.5s ease-out;
+            width: 90%; max-width: 400px; text-align: center;
+            display: none;
+        }
+        .notification.error { background: linear-gradient(135deg, var(--danger), #da3633); }
+        .notification.success { background: linear-gradient(135deg, var(--success), #288b3b); }
+    </style>
+</head>
+<body>
+    <div id="notification" class="notification"></div>
+
+    <div class="container">
+        <div class="header">
+            <h1>Settings</h1>
+        </div>
+
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('tab-general', this)">General</button>
+            <button class="tab-btn" onclick="switchTab('tab-nrf', this)">nRF24</button>
+            <button class="tab-btn" onclick="switchTab('tab-jam', this)">Jammer</button>
+            <button class="tab-btn" onclick="switchTab('tab-attacks', this)">Attacks</button>
+        </div>
+
+        <div id="tab-general" class="tab-content active">
+            <div class="section-title">Logo Settings</div>
+            <div class="options-group">
+                <button class="option-btn opt-logo active" onclick="setOpt('logo', 0)">
+                    <div class="method-info">
+                        <div class="method-name">Show logo</div>
+                        <div class="method-desc">Display logo when device boots</div>
+                    </div>
+                </button>
+                <button class="option-btn opt-logo" onclick="setOpt('logo', 1)">
+                    <div class="method-info">
+                        <div class="method-name">Hide logo</div>
+                        <div class="method-desc">Skip logo display on boot</div>
+                    </div>
+                </button>
+            </div>
+
+            <div class="section-title">Display Control</div>
+            <div class="options-group">
+                <label class="checkbox-wrapper">
+                    <input type="checkbox" id="display-disable" onchange="toggleDisplayStatus()">
+                    <div class="checkmark"></div>
+                    <span class="checkbox-label">Disable display</span>
+                </label>
+
+                <button id="display-height-64" class="option-btn opt-screen_height active" onclick="setOpt('screen_height', 64)">
+                    <div class="method-info">
+                        <div class="method-name">128x64 px</div>
+                        <div class="method-desc">0.96 inch display</div>
+                    </div>
+                </button>
+                <button id="display-height-32" class="option-btn opt-screen_height" onclick="setOpt('screen_height', 32)">
+                    <div class="method-info">
+                        <div class="method-name">128x32 px</div>
+                        <div class="method-desc">0.91 inch display</div>
+                    </div>
+                </button>
+            </div>
+
+            <div class="section-title">Button Configuration</div>
+            <div class="options-group">
+                <button class="option-btn opt-button active" onclick="setOpt('button', 0)">
+                    <div class="method-info">
+                        <div class="method-name">1 Button</div>
+                        <div class="method-desc">Pin 25 only</div>
+                    </div>
+                </button>
+                <button class="option-btn opt-button" onclick="setOpt('button', 1)">
+                    <div class="method-info">
+                        <div class="method-name">2 Buttons</div>
+                        <div class="method-desc">Pins 25, 26</div>
+                    </div>
+                </button>
+                <button class="option-btn opt-button" onclick="setOpt('button', 2)">
+                    <div class="method-info">
+                        <div class="method-name">3 Buttons</div>
+                        <div class="method-desc">Pins 25, 26, 27</div>
+                    </div>
+                </button>
+            </div>
+
+            <div class="section-title">Baudrate Configuration</div>
+                <div class="options-group">
+                    <div class="input-group" style="margin-bottom: 0;">
+                    <div class="input-wrapper">
+                        <input type="number" id="baudrate" class="input" placeholder="UART Baudrate">
+                    </div>
+                </div>
+            </div>
+
+            <div class="section-title" style="margin-top: 5px;">WiFi Settings</div>
+            
+            <label class="checkbox-wrapper">
+                <input type="checkbox" id="ap-disable" onchange="toggleApStatus()">
+                <div class="checkmark"></div>
+                <span class="checkbox-label">Disable AP</span>
+            </label>
+
+            <div class="input-group" style="margin-bottom: 0;">
+                <div class="input-wrapper">
+                    <input type="text" id="wifi-ssid" class="input" placeholder="Network SSID">
+                </div>
+            </div>
+            <div class="input-group">
+                <div class="input-wrapper">
+                    <input type="text" id="wifi-pass" class="input" placeholder="Password">
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-nrf" class="tab-content">
+            <div class="section-title">Channel Sweep Direction</div>
+            <div class="options-group">
+                <button class="option-btn opt-sweep active" onclick="setOpt('sweep', 0)">
+                    <div class="method-info">
+                        <div class="method-name">Opposite Directions</div>
+                        <div class="method-desc">Better coverage</div>
+                    </div>
+                </button>
+                <button class="option-btn opt-sweep" onclick="setOpt('sweep', 1)">
+                    <div class="method-info">
+                        <div class="method-name">Same Direction</div>
+                        <div class="method-desc">Synchronized sweep</div>
+                    </div>
+                </button>
+            </div>
+
+            <div class="section-title">nRF24 PA Level</div>
+            <div class="options-group">
+                <button class="option-btn opt-pa active" onclick="setOpt('pa', 0)">
+                    <div class="method-name">Max</div>
+                    <div class="method-desc">0 dBm</div>
+                </button>
+                <button class="option-btn opt-pa" onclick="setOpt('pa', 1)">
+                    <div class="method-name">High</div>
+                    <div class="method-desc">-6 dBm</div>
+                </button>
+                <button class="option-btn opt-pa" onclick="setOpt('pa', 2)">
+                    <div class="method-name">Low</div>
+                    <div class="method-desc">-12 dBm</div>
+                </button>
+                <button class="option-btn opt-pa" onclick="setOpt('pa', 3)">
+                    <div class="method-name">Min</div>
+                    <div class="method-desc">-18 dBm</div>
+                </button>
+            </div>
+
+            <div class="section-title" style="margin-top: 10px;">nRF24 Modules Setup</div>
+
+            <div id="nrf-notice" class="nrf-notice">
+                <span class="nrf-notice-icon">!</span>
+                <span id="nrf-notice-text"></span>
+            </div>
+
+            <div id="nrf-container" class="modules-container">
+            </div>
+            <button class="btn-add" onclick="addNrfModule()">+ Add Module</button>
+        </div>
+
+        <div id="tab-jam" class="tab-content">
+            <div class="section-title">Bluetooth Jam Method</div>
+            <div class="options-group">
+                <button class="option-btn opt-bt active" onclick="setOpt('bt', 0)">
+                    <div class="method-info"><div class="method-name">Brute Force By List</div><div class="method-desc">21 predefined channels</div></div>
+                </button>
+                <button class="option-btn opt-bt" onclick="setOpt('bt', 1)">
+                    <div class="method-info"><div class="method-name">Randomize</div><div class="method-desc">0-79 channels</div></div>
+                </button>
+                <button class="option-btn opt-bt" onclick="setOpt('bt', 2)">
+                    <div class="method-info"><div class="method-name">Brute Force Scan</div><div class="method-desc">All 80 channels</div></div>
+                </button>
+            </div>
+
+            <div class="section-title">Drone Jam Method</div>
+            <div class="options-group">
+                <button class="option-btn opt-drone active" onclick="setOpt('drone', 0)">
+                    <div class="method-info"><div class="method-name">Randomize</div><div class="method-desc">0-125 channels</div></div>
+                </button>
+                <button class="option-btn opt-drone" onclick="setOpt('drone', 1)">
+                    <div class="method-info"><div class="method-name">Brute Force Scan</div><div class="method-desc">Systematic scan</div></div>
+                </button>
+            </div>
+
+            <div class="section-title">Misc Jam Method</div>
+            <div class="options-group">
+                <button class="option-btn opt-misc active" onclick="setOpt('misc', 0)">
+                    <div class="method-info"><div class="method-name">Channel Switching</div><div class="method-desc">Fast mode</div></div>
+                </button>
+                <button class="option-btn opt-misc" onclick="setOpt('misc', 1)">
+                    <div class="method-info"><div class="method-name">Packet Sending</div><div class="method-desc">Slow mode</div></div>
+                </button>
+            </div>
+
+            <div class="section-title">Jam Delay</div>
+            <div class="input-group" style="margin-bottom: 0;">
+                <div class="input-wrapper">
+                    <input type="number" id="jam-delay" class="input" placeholder="Jam Delay [µs]">
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-attacks" class="tab-content">
+            <div class="section-title">WiFi Beacon Spam</div>
+            
+            <div id="beacon-container" class="modules-container">
+            </div>
+            
+            <button class="btn-add" onclick="addBeaconModule()">+ Add SSID</button>
+        </div>
+
+        <div class="controls">
+            <button class="btn-add" onclick="saveAllSettings()">Save Settings</button>
+            <button class="back-btn" onclick="location.href='/'">← Back to Main Menu</button>
+        </div>
+    </div>
+
+    <script>
+        const NRF_MSG_NO_MODULES =
+            "Couldn’t identify the pins";
+        
+        const state = {
+            baudrate: 0,
+            logo: 0,
+            display: 0,
+            screen_height: 0,
+            button: 0,
+            sweep: 0,
+            pa: 0,
+            bt: 0,
+            drone: 0,
+            misc: 0,
+            ap: 0,
+            delay: 0
+        };
+
+        function switchTab(tabId, btn) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+            const content = document.getElementById(tabId);
+            if (content) content.classList.add('active');
+
+            if (!btn) {
+                const ids = ['tab-general', 'tab-nrf', 'tab-jam', 'tab-attacks'];
+                const idx = ids.indexOf(tabId);
+                btn = document.querySelectorAll('.tab-btn')[idx];
+            }
+            if (btn) btn.classList.add('active');
+        }
+
+        function setOpt(category, value) {
+            state[category] = value;
+            const buttons = document.querySelectorAll(`.opt-${category}`);
+            buttons.forEach(el => el.classList.remove('active'));
+
+            for (const el of buttons) {
+                const onclick = el.getAttribute('onclick') || '';
+                const m = onclick.match(/setOpt\s*\(\s*['"][^'"]+['"]\s*,\s*(\d+)\s*\)/);
+                if (m && parseInt(m[1], 10) === value) {
+                    el.classList.add('active');
+                    break;
+                }
+            }
+        }
+
+        function toggleDisplayStatus() {
+            const isChecked = document.getElementById('display-disable').checked;
+            state.display = isChecked ? 1 : 0;
+            document.getElementById('display-height-64').disabled = isChecked;
+            document.getElementById('display-height-32').disabled = isChecked;
+        }
+
+        function toggleApStatus() {
+            const isChecked = document.getElementById('ap-disable').checked;
+            state.ap = isChecked ? 1 : 0;
+            document.getElementById('wifi-ssid').disabled = isChecked;
+            document.getElementById('wifi-pass').disabled = isChecked;
+        }
+
+        function showNrfNotice(text) {
+            const box  = document.getElementById('nrf-notice');
+            const span = document.getElementById('nrf-notice-text');
+            if (!box || !span) return;
+
+            if (!text) {
+                box.style.display = 'none';
+                span.textContent = '';
+                return;
+            }
+            span.textContent = text;
+            box.style.display = 'flex';
+        }
+
+        function addNrfModule(ce = '', csn = '') {
+            const container = document.getElementById('nrf-container');
+            if(container.children.length >= 30) {
+                showToast("Maximum 30 modules allowed", true);
+                return;
+            }
+
+            const div = document.createElement('div');
+            div.className = 'input-group nrf-module';
+            div.innerHTML = `
+                <div class="input-wrapper">
+                    <label class="input-label">CE Pin</label>
+                    <input type="number" class="input text-center ce-pin" value="${ce}" placeholder="CE" min="0" max="99">
+                </div>
+                <div class="input-wrapper">
+                    <label class="input-label">CSN Pin</label>
+                    <input type="number" class="input text-center csn-pin" value="${csn}" placeholder="CSN" min="0" max="99">
+                </div>
+                <button class="delete-btn" onclick="removeNrfModule(this)" title="Remove module"><span>×</span></button>
+            `;
+            container.appendChild(div);
+            updateNrfButtons();
+        }
+
+        function removeNrfModule(btn) {
+            const group = btn.closest('.nrf-module');
+            group.style.opacity = '0';
+            group.style.transform = 'translateX(20px)';
+            group.style.transition = 'all 0.3s ease';
+            setTimeout(() => { group.remove(); updateNrfButtons(); }, 300);
+        }
+
+        function updateNrfButtons() {
+            const deleteBtns = document.getElementById('nrf-container').querySelectorAll('.delete-btn');
+            deleteBtns.forEach(btn => btn.disabled = (deleteBtns.length <= 1));
+        }
+
+        function addBeaconModule(ssid = '') {
+            const container = document.getElementById('beacon-container');
+            if(container.children.length >= 99) {
+                showToast("Maximum 99 SSIDs allowed", true);
+                return;
+            }
+
+            const div = document.createElement('div');
+            div.className = 'input-group beacon-module';
+            div.innerHTML = `
+                <div class="input-wrapper">
+                    <label class="input-label">SSID</label>
+                    <input type="text" class="input beacon-ssid" value="${ssid}" placeholder="WiFi SSID" maxlength="31">
+                </div>
+                <button class="delete-btn" onclick="removeBeaconModule(this)" title="Remove SSID"><span>×</span></button>
+            `;
+            container.appendChild(div);
+            updateBeaconButtons();
+        }
+
+        function removeBeaconModule(btn) {
+            const group = btn.closest('.beacon-module');
+            group.style.opacity = '0';
+            group.style.transform = 'translateX(20px)';
+            group.style.transition = 'all 0.3s ease';
+            setTimeout(() => { group.remove(); updateBeaconButtons(); }, 300);
+        }
+
+        function updateBeaconButtons() {
+            const deleteBtns = document.getElementById('beacon-container').querySelectorAll('.delete-btn');
+            deleteBtns.forEach(btn => btn.disabled = (deleteBtns.length <= 1));
+        }
+
+        function showToast(msg, isError = false) {
+            const toast = document.getElementById('notification');
+            toast.textContent = msg;
+            toast.className = `notification ${isError ? 'error' : 'success'}`;
+            toast.style.display = 'block';
+            setTimeout(() => toast.style.top = '20px', 10);
+            setTimeout(() => {
+                toast.style.top = '-100px';
+                setTimeout(() => toast.style.display = 'none', 500);
+            }, 3000);
+        }
+
+        function saveAllSettings() {
+            const ceInputs = document.querySelectorAll('.ce-pin');
+            const csnInputs = document.querySelectorAll('.csn-pin');
+            let ceList = [], csnList = [];
+            let hasNrfError = false;
+
+            ceInputs.forEach((el, idx) => {
+                const ce  = el.value.trim();
+                const csn = csnInputs[idx].value.trim();
+
+                if (ce === '' && csn === '') return;
+
+                if (ce === '' || csn === '') hasNrfError = true;
+                ceList.push(ce);
+                csnList.push(csn);
+            });
+
+            if (hasNrfError) {
+                showToast("Please fill all CE/CSN pins!", true);
+                switchTab('tab-nrf');
+                return;
+            }
+
+            state.delay = document.getElementById('jam-delay').value;
+
+            state.baudrate = document.getElementById('baudrate').value;
+
+            const wifiSsid = encodeURIComponent(document.getElementById('wifi-ssid').value);
+            const wifiPassValue = document.getElementById('wifi-pass').value;
+            
+            if (state.ap === 0 && wifiPassValue.length > 0 && wifiPassValue.length < 8) {
+                showToast("WiFi Password must be at least 8 characters!", true);
+                switchTab('tab-general');
+                return;
+            }
+            
+            const wifiPass = encodeURIComponent(wifiPassValue);
+
+            const beaconInputs = document.querySelectorAll('.beacon-ssid');
+            let beaconSsids = [];
+            beaconInputs.forEach(mod => {
+                const val = mod.value.trim();
+                if (val !== "") beaconSsids.push(val);
+            });
+
+            let url = `/set_settings?baudrate=${state.baudrate}&logo=${state.logo}&display=${state.display}&screen_height=${state.screen_height}&button=${state.button}&sweep=${state.sweep}&pa=${state.pa}&bt_method=${state.bt}&drone_method=${state.drone}&misc_method=${state.misc}&ssid=${wifiSsid}&password=${wifiPass}&ap=${state.ap}&delay=${state.delay}`;
+
+            if (beaconSsids.length > 0) {
+                url += `&beacon=${beaconSsids.join('|')}`;
+            }
+            if (ceList.length > 0) {
+                url += `&ce=${ceList.join('|')}&csn=${csnList.join('|')}`;
+            }
+
+            fetch(url)
+                .then(response => {
+                    if (response.ok) {
+                        window.location.href = '/';
+                    } else {
+                        showToast("Failed to save settings", true);
+                    }
+                })
+                .catch(() => {
+                    showToast("Error saving settings", true);
+                });
+        }
+
+        function parseServerData(rawData) {
+            const parsed = {};
+            if (!rawData) return parsed;
+
+            rawData.split(';').forEach(pair => {
+                const idx = pair.indexOf('=');
+                if (idx === -1) return;
+                const k = pair.slice(0, idx).trim();
+                const v = pair.slice(idx + 1).trim();
+                if (k) parsed[k] = v;
+            });
+            return parsed;
+        }
+
+        function applyNrfModules(parsed) {
+            const container = document.getElementById('nrf-container');
+            container.innerHTML = '';
+
+            const ceArr  = Array.isArray(parsed.ce_pins)  ? parsed.ce_pins  : [];
+            const csnArr = Array.isArray(parsed.csn_pins) ? parsed.csn_pins : [];
+
+            if (ceArr.length > 0 && csnArr.length > 0) {
+                ceArr.forEach((ce, i) => addNrfModule(ce, csnArr[i] ?? ''));
+                showNrfNotice(null);
+            } else {
+                showNrfNotice(NRF_MSG_NO_MODULES);
+            }
+            updateNrfButtons();
+        }
+
+        async function fetchSettings() {
+            try {
+                const res = await fetch('/api/settings', { cache: 'no-store' });
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                return await res.json();
+            } catch (e) {
+                console.error('Settings load failed:', e);
+                return {};
+            }
+        }
+
+        async function applyServerData() {
+            const parsed = await fetchSettings();
+
+            ['baudrate', 'logo', 'display', 'screen_height', 'button', 'sweep', 'pa', 'bt', 'drone', 'misc'].forEach(k => {
+                if (parsed[k] !== undefined) {
+                    setOpt(k, parseInt(parsed[k], 10));
+                }
+            });
+
+            if (parsed.delay !== undefined) {
+                state.delay = parsed.delay;
+                document.getElementById('jam-delay').value = parsed.delay;
+            }
+            if (parsed.baudrate !== undefined) {
+                state.baudrate = parsed.baudrate;
+                document.getElementById('baudrate').value = parsed.baudrate;
+            }
+            if (parsed.ssid !== undefined) {
+                document.getElementById('wifi-ssid').value = parsed.ssid;
+            }
+            if (parsed.password !== undefined) {
+                document.getElementById('wifi-pass').value = parsed.password;
+            }
+            if (parsed.display !== undefined) {
+                state.display = parseInt(parsed.display, 10);
+                document.getElementById('display-disable').checked = (state.display === 1);
+                toggleDisplayStatus();
+            }
+            if (parsed.ap !== undefined) {
+                state.ap = parseInt(parsed.ap, 10);
+                document.getElementById('ap-disable').checked = (state.ap === 1);
+                toggleApStatus();
+            }
+
+            const bc = document.getElementById('beacon-container');
+            bc.innerHTML = '';
+            if (Array.isArray(parsed.beacon) && parsed.beacon.length > 0) {
+                parsed.beacon.forEach(ssid => addBeaconModule(ssid));
+            } else {
+                addBeaconModule();
+            }
+
+            applyNrfModules(parsed);
+        }
+
+        window.addEventListener('load', applyServerData);
+    </script>
+</body>
+</html>
