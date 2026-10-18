@@ -1,5 +1,14 @@
 #include "jam.h"
 
+// ---------------------------------------------------------------------------
+// Forward declarations for the BLE attack wrapper tasks (defined at the bottom
+// of this file).  They are used here only to select a larger FreeRTOS stack
+// for the NimBLE-based attack tasks.
+// ---------------------------------------------------------------------------
+void ble_apple_flood_task();
+void ble_adv_flood_task();
+void ble_scan_flood_task();
+
 int        nrf_pa_level;
 static int global_ch1, global_ch2;
 bool       stopJam = false;
@@ -756,6 +765,7 @@ void fpv_video_jam()
 // band to disrupt any 2.4 GHz HID dongle (Logitech, Microsoft Nano, etc.).
 void hid_wireless_jam()
 {
+  Serial.println("[hid_wireless_jam] task entered");
   vTaskPrioritySet(NULL, 3);
   // HID channels: even-numbered nRF24 channels covering 2402–2472 MHz
   // (nRF24 ch 2 = 2402 MHz, ch 72 = 2472 MHz).
@@ -811,6 +821,7 @@ void hid_wireless_jam()
 // all Unifying/Bolt devices regardless of address: ch 5,8,11,...,74 (step 3).
 void logitech_unifying_jam()
 {
+  Serial.println("[logitech_unifying_jam] task entered");
   vTaskPrioritySet(NULL, 3);
   // 25 channels, step = 3, starting at 5: 5,8,11,...,77
   static const uint8_t unifying_chs[] = {
@@ -868,6 +879,7 @@ void logitech_unifying_jam()
 // 2 Mbps data rate (same as the hardware) to maximise interference.
 void ms_wireless_jam()
 {
+  Serial.println("[ms_wireless_jam] task entered");
   vTaskPrioritySet(NULL, 3);
   while ( !stopJam )
   {
@@ -923,6 +935,7 @@ void ms_wireless_jam()
 // approach when the hopping pattern is unknown.
 void rc_controller_jam()
 {
+  Serial.println("[rc_controller_jam] task entered");
   vTaskPrioritySet(NULL, 3);
   while ( !stopJam )
   {
@@ -974,6 +987,7 @@ void rc_controller_jam()
 // nRF24 0–125 range) to cover most bindings.
 void flysky_jam()
 {
+  Serial.println("[flysky_jam] task entered");
   vTaskPrioritySet(NULL, 3);
   // Representative AFHDS-2A hop set (nRF24 channel numbers 0-125).
   // Actual set depends on TX ID but these cover the most common pairings.
@@ -1031,6 +1045,7 @@ void flysky_jam()
 // 0–79.  Sweep that window.
 void spektrum_jam()
 {
+  Serial.println("[spektrum_jam] task entered");
   vTaskPrioritySet(NULL, 3);
   while ( !stopJam )
   {
@@ -1080,6 +1095,7 @@ void spektrum_jam()
 // Sweep ch 0–100 (covers all FrSky bands including LBT channels).
 void frsky_jam()
 {
+  Serial.println("[frsky_jam] task entered");
   vTaskPrioritySet(NULL, 3);
   while ( !stopJam )
   {
@@ -1166,8 +1182,15 @@ bool jamHandler(void (*action)(), String htmlResponse, const unsigned char *bitm
     display.display();
   }
 
-  server.sendHeader("Content-Encoding", "gzip");
-  server.send_P(200, "text/html", (const char *)html_jam, html_jam_len);
+  // Only push the jam HTML page if a real HTTP client is connected.
+  // Serial- or button-triggered jams have no active request; calling
+  // server.send_P() in that state can block on some ESP32 core versions
+  // and prevents the jam task from ever being created.
+  if ( webServerStarted && server.client() )
+  {
+    server.sendHeader("Content-Encoding", "gzip");
+    server.send_P(200, "text/html", (const char *)html_jam, html_jam_len);
+  }
 
   if ( scan )
   {
@@ -1202,16 +1225,27 @@ bool jamHandler(void (*action)(), String htmlResponse, const unsigned char *bitm
     }
   }
 
-  xTaskCreatePinnedToCore(reinterpret_cast<TaskFunction_t>(action), "Jammer", 4096, NULL, 3, &TaskHandle, 0);
+  // The BLE attack tasks use NimBLE + std::string + heap allocation and need
+  // a much larger stack than the nRF24 channel-hoppers.  A 4 KB stack causes
+  // a silent panic/reboot shortly after start.
+  uint32_t stackSize = 4096;
+  if ( action == ble_apple_flood_task ||
+       action == ble_adv_flood_task ||
+       action == ble_scan_flood_task )
+  {
+    stackSize = 16384;
+  }
 
-updateJoystickButtons();
+  xTaskCreatePinnedToCore(reinterpret_cast<TaskFunction_t>(action), "Jammer", stackSize, NULL, 3, &TaskHandle, 0);
+
+  updateJoystickButtons();
   bool SerialStop = true;
   bool exit       = false;
 
   while ( !exit && SerialStop )
   {
     randomSeed(esp_random() + millis());
-updateJoystickButtons();
+    updateJoystickButtons();
     SerialStop = SerialCommands();
 
     if ( btnOK.isSingle() )
@@ -1247,7 +1281,7 @@ updateJoystickButtons();
   }
 
   HSPI_deinit();
-updateJoystickButtons();
+  updateJoystickButtons();
   updateDisplay(menu_number);
 
   return exit;

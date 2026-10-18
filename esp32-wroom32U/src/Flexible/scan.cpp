@@ -63,9 +63,24 @@ int scan_wifi_APs(int *channels, bool mode)
   }
 }
 
+// ---------------------------------------------------------------------------
+// BLE scan
+// ---------------------------------------------------------------------------
+// Fixed: this used to call BLEDevice::init("") (Bluedroid) but then use
+// NimBLEDevice::getScan() (NimBLE) — two different BLE stacks.  That mismatch
+// left the controller in a torn-down state after a scan, so any subsequent
+// BLE attack (apple/adv/scan flood) could not init NimBLE and silently failed.
+// The scan now uses NimBLE end-to-end, matching ble_attack.cpp.
+// ---------------------------------------------------------------------------
 int scan_BLE()
 {
-  BLEDevice::init("");
+  // Free the Wi-Fi radio so BLE init has a clean controller.
+  if ( access_point == 0 )
+    WiFi.softAPdisconnect(true);
+  WiFi.mode(WIFI_OFF);
+  delay(100);
+
+  NimBLEDevice::init("");
   delay(100);
 
   for ( int i = 0; i < 100; i++ )
@@ -127,9 +142,14 @@ int scan_BLE()
   if ( pBLEScan->isScanning() )
     pBLEScan->stop();
   NimBLEDevice::deinit(true);
-  esp_bt_controller_disable();
-  delay(100);
-  esp_bt_controller_deinit();
+
+  // Restore the SoftAP so the web UI stays reachable after the scan.
+  if ( access_point == 0 )
+  {
+    WiFi.mode(WIFI_AP);
+    delay(50);
+    WiFi.softAP(ssid.c_str(), password.c_str());
+  }
 
   return count;
 }
