@@ -29,11 +29,14 @@ void DeinitRadios(bool stopConstCarrier)
 }
 void HSPI_init()
 {
-  hp = new SPIClass(HSPI);
-  hp->begin(14, 12, 13, -1);
-  hp->setFrequency(16000000);
-  hp->setBitOrder(MSBFIRST);
-  hp->setDataMode(SPI_MODE0);
+  if ( hp == nullptr )
+  {
+    hp = new SPIClass(HSPI);
+    hp->begin(14, 12, 13, -1);
+    hp->setFrequency(16000000);
+    hp->setBitOrder(MSBFIRST);
+    hp->setDataMode(SPI_MODE0);
+  }
   for ( int i = 0; i < nrf24_count; i++ )
   {
     radios[i]->begin(hp);
@@ -70,11 +73,14 @@ void HSPI_init()
 // detection / status routines when the radio objects are not allocated.
 void HSPI_initBare()
 {
-  hp = new SPIClass(HSPI);
-  hp->begin(14, 12, 13, -1);
-  hp->setFrequency(16000000);
-  hp->setBitOrder(MSBFIRST);
-  hp->setDataMode(SPI_MODE0);
+  if ( hp == nullptr )
+  {
+    hp = new SPIClass(HSPI);
+    hp->begin(14, 12, 13, -1);
+    hp->setFrequency(16000000);
+    hp->setBitOrder(MSBFIRST);
+    hp->setDataMode(SPI_MODE0);
+  }
 }
 void HSPI_deinit()
 {
@@ -84,6 +90,9 @@ void HSPI_deinit()
     delete hp;
     hp = nullptr;
   }
+  // Ensure GPIO 12 (HSPI MISO / MTDI strapping pin) is pulled down when idle
+  // so it cannot be sampled HIGH during resets (which causes 1.8V flash read err 1000).
+  pinMode(12, INPUT_PULLDOWN);
   digitalWrite(2, LOW);
 }
 void bluetooth_jam()

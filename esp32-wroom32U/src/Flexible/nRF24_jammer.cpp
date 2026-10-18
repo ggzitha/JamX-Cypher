@@ -2005,7 +2005,9 @@ void setup()
   prefs.begin("configs", false);
 
   disableCore0WDT();
-  disableCore1WDT();
+
+  // Protect GPIO 12 (MTDI strap) from being read HIGH at reboot
+  pinMode(12, INPUT_PULLDOWN);
 
   pinMode(2, OUTPUT);
   digitalWrite(2, LOW);
