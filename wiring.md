@@ -70,6 +70,11 @@ strapping pin and must read LOW at boot, or the ESP32 can fail with
 | VCC | 3.3 V |
 | GND | GND |
 
+**Pull-ups: YES.** Add **4.7 kΩ from SDA → 3.3 V** and **4.7 kΩ from SCL → 3.3 V**.
+Some OLED breakout boards already include these onboard; if yours does, extra
+resistors are harmless. Do **not** skip them — the ESP32's internal I2C
+pull-ups are too weak (~45 kΩ) for reliable communication.
+
 ### Joystick (3-button equivalent)
 
 | Joystick pin | ESP32 GPIO | Function |
@@ -77,11 +82,19 @@ strapping pin and must read LOW at boot, or the ESP32 can fail with
 | SW (button) | **25** | OK / select / stop jam |
 | VRy (analog) | **35** | pushed down → Next menu |
 | VRx (analog) | **34** | pushed up → Previous menu |
-| +5V / VCC | 3.3 V (see your module) | |
+| +5V / VCC | **3.3 V** (not 5 V) | |
 | GND | GND | |
 
+**Pull-ups / pull-downs: NONE needed.**
+
+- `SW` uses the firmware's internal pull-up (`INPUT_PULLUP`), so just wire the
+  button contact to GND.
+- `VRx`/`VRy` are the joystick's potentiometer divider outputs — connect them
+  straight to GPIO 34/35, no extra resistors.
+- Power the joystick from **3.3 V**, because GPIO 34/35 are **not 5 V-tolerant**
+  and a 5 V-powered joystick can push >3.3 V into the ADC.
+
 `VRx`/`VRy` are on ADC1 (34/35) so they still read while Wi-Fi is active.
-`SW` uses the internal pull-up.
 
 ### Activity LED
 
