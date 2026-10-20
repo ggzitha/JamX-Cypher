@@ -539,21 +539,21 @@
 
             <div class="section-title">nRF24 PA Level</div>
             <div class="options-group">
-                <button class="option-btn opt-pa active" onclick="setOpt('pa', 0)">
-                    <div class="method-name">Max</div>
-                    <div class="method-desc">0 dBm</div>
+                <button class="option-btn opt-pa" onclick="setOpt('pa', 0)">
+                    <div class="method-name">Min</div>
+                    <div class="method-desc">-18 dBm</div>
                 </button>
                 <button class="option-btn opt-pa" onclick="setOpt('pa', 1)">
-                    <div class="method-name">High</div>
-                    <div class="method-desc">-6 dBm</div>
-                </button>
-                <button class="option-btn opt-pa" onclick="setOpt('pa', 2)">
                     <div class="method-name">Low</div>
                     <div class="method-desc">-12 dBm</div>
                 </button>
-                <button class="option-btn opt-pa" onclick="setOpt('pa', 3)">
-                    <div class="method-name">Min</div>
-                    <div class="method-desc">-18 dBm</div>
+                <button class="option-btn opt-pa" onclick="setOpt('pa', 2)">
+                    <div class="method-name">High</div>
+                    <div class="method-desc">-6 dBm</div>
+                </button>
+                <button class="option-btn opt-pa active" onclick="setOpt('pa', 3)">
+                    <div class="method-name">Max</div>
+                    <div class="method-desc">0 dBm</div>
                 </button>
             </div>
 
@@ -637,7 +637,7 @@
             screen_height: 0,
             button: 0,
             sweep: 0,
-            pa: 0,
+            pa: 3,
             bt: 0,
             drone: 0,
             misc: 0,

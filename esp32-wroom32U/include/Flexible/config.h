@@ -49,6 +49,12 @@ inline byte       ble_channels[]       = {2, 26, 80};
 inline const char jam_text[]           = "xxxxxxxxxxxxxxxx";
 inline int        jam_delay;
 
+// nRF24L01+ synthesizer settling time.  After a channel change the PLL needs
+// roughly 130 us before the carrier is on-frequency.  A constant-carrier jammer
+// that retunes faster than this NEVER locks, so it radiates nothing usable -
+// which is why a dwell of 0 makes every "sweep" jammer silent.
+#define NRF24_MIN_DWELL_US 200
+
 inline String BLE_MAC[100];
 inline int    BLE_RSSI[100];
 inline String BLE_Name[100];
@@ -83,62 +89,70 @@ inline int  channel2 = 0;
 inline int  flag     = 0;
 inline bool hspi     = false;
 
-// Joystick pins
-// SW  = 25  (digital, INPUT_PULLUP — btnOK / execute)
-// VRy = 35  (ADC1, analog — pushed down  -> btnNext)
-// VRx = 34  (ADC1, analog — pushed up    -> btnPrevious)
-// NOTE: 34/35 are ADC1 pins so they are NOT blocked when Wi-Fi is active.
-//       26/27 are ADC2 and CANNOT be used for analogRead while Wi-Fi is running.
-#define JOY_SW  25
-#define JOY_VRY 35   // down -> btnNext
-#define JOY_VRX 34   // up   -> btnPrevious
+// Joystick pin definitions
+// SW:   GPIO 25 (Digital push switch, active-LOW with INPUT_PULLUP)
+// VRy:  GPIO 35 (ADC1_CH7, analog input)
+// VRx:  GPIO 34 (ADC1_CH6, analog input)
+#define JOY_SW           25
+#define JOY_VRY          35
+#define JOY_VRX          34
 
 inline SPIClass        *hp = nullptr;
-inline GButton          btnOK(JOY_SW);
-inline GButton          btnNext(JOY_VRY);
-inline GButton          btnPrevious(JOY_VRX);
+inline GButton          btnOK(JOY_SW, HIGH_PULL, NORM_OPEN);
+inline GButton          btnNext(JOY_VRY, HIGH_PULL, NORM_OPEN);
+inline GButton          btnPrevious(JOY_VRX, HIGH_PULL, NORM_OPEN);
 
 inline WebServer        server(80);
 inline DNSServer        dnsServer;
 inline Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT_MAX, &Wire, OLED_RESET);
 inline Preferences      prefs;
 
-// ---- Joystick helper ----
-// Replaces the three btnXXX.tick() calls. Reads the joystick's SW (digital) and
-// VRx/VRy (analog) and drives the GButton state machines via tick(bool).
-//   SW  (pin 25) -> btnOK
-//   VRy (pin 26) -> pushed down  -> btnNext
-//   VRx (pin 27) -> pushed up    -> btnPrevious
-//   Left/Right are unused for now.
-inline void updateJoystickButtons()
-{
-  // SW button: digitalRead returns LOW when pressed (INPUT_PULLUP).
-  bool sw_pressed = (digitalRead(JOY_SW) == LOW);
-  btnOK.tick(sw_pressed);
+// Joystick resting center calibration values
+inline int joy_center_y = 2048;
+inline int joy_center_x = 2048;
 
-  // Analog axes: 12-bit ADC, 0..4095.
-  // Centre ~2048; threshold at ~600 (well below centre) to detect deflection.
-  static const int JOY_THRESHOLD = 600;
-
-  int raw_down  = analogRead(JOY_VRY); // pushed down -> high value
-  int raw_up    = analogRead(JOY_VRX); // pushed up   -> high value
-  // Left/Right would use the other axis endpoints but are unused for now.
-
-  bool down_active = (raw_down >= JOY_THRESHOLD);
-  bool up_active   = (raw_up   >= JOY_THRESHOLD);
-
-  // Feed the GButton state machines with the current (debounced by GButton)
-  // pressed state.  GButton's internal debounce + click detection handles the
-  // rest, exactly as it did for real buttons.
-  btnNext.tick(down_active);
-  btnPrevious.tick(up_active);
-}
-
-// Called once in setup() to configure the joystick pins.
+// Configures the joystick pins and samples resting center position
 inline void initJoystick()
 {
   pinMode(JOY_SW, INPUT_PULLUP);
   analogReadResolution(12); // 12-bit ADC (0..4095)
+
+  // Calibrate joystick resting center at boot (average 16 samples)
+  long sum_y = 0;
+  long sum_x = 0;
+  for ( int i = 0; i < 16; i++ )
+  {
+    sum_y += analogRead(JOY_VRY);
+    sum_x += analogRead(JOY_VRX);
+    delay(5);
+  }
+  joy_center_y = sum_y / 16;
+  joy_center_x = sum_x / 16;
+
+  // Fallback sanity check if disconnected or floating
+  if ( joy_center_y < 500 || joy_center_y > 3500 ) joy_center_y = 2048;
+  if ( joy_center_x < 500 || joy_center_x > 3500 ) joy_center_x = 2048;
+}
+
+// Reads joystick SW (digital) and deflection on VRy/VRx (analog with deadband)
+inline void updateJoystickButtons()
+{
+  // SW: digital active-LOW button
+  bool sw_pressed = (digitalRead(JOY_SW) == LOW);
+  btnOK.tick(sw_pressed);
+
+  // Deadband around resting center (~900 units out of 0..4095 range)
+  static const int JOY_DEADZONE = 900;
+
+  int raw_y = analogRead(JOY_VRY);
+  int raw_x = analogRead(JOY_VRX);
+
+  // Deflection in positive direction (Next) or negative direction (Previous)
+  bool next_active = (raw_y > (joy_center_y + JOY_DEADZONE)) || (raw_x > (joy_center_x + JOY_DEADZONE));
+  bool prev_active = (raw_y < (joy_center_y - JOY_DEADZONE)) || (raw_x < (joy_center_x - JOY_DEADZONE));
+
+  btnNext.tick(next_active);
+  btnPrevious.tick(prev_active);
 }
 
 #endif

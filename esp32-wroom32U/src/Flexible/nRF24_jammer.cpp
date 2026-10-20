@@ -53,19 +53,62 @@ void HandleWebCommand()
 
 void updateDisplay(int menuNum)
 {
+  static const char *const titles[13] = {
+      "Bluetooth Jammer",    // 0
+      "Drone Jammer",        // 1
+      "WiFi Attacks",        // 2
+      "BLE Jammer",          // 3
+      "Zigbee Jammer",       // 4
+      "Misc (custom range)", // 5
+      "Settings",            // 6
+      "Full 2.4 GHz",        // 7
+      "USB 2.4 GHz",         // 8
+      "FPV / Video",         // 9
+      "HID Jammer",          // 10
+      "RC Jammer",           // 11
+      "Apple BLE Flood"      // 12
+  };
+
+  const int maxVisible = (SCREEN_HEIGHT == 64) ? 6 : 3;
+  const int lineHeight = (SCREEN_HEIGHT == 64) ? 10 : 9;
+
+  // Keep the selected item visible, roughly centred in the window.
+  int scroll = menuNum - (maxVisible / 2);
+  if ( scroll < 0 )
+    scroll = 0;
+  if ( scroll + maxVisible > 13 )
+    scroll = 13 - maxVisible;
+
   display.clearDisplay();
-  const uint8_t *bitmap = (menu_number == 0)   ? decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_bluetooth_jammer_64 : bitmap_bluetooth_jammer_32)
-                          : (menu_number == 1) ? decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_drone_jammer_64 : bitmap_drone_jammer_32)
-                          : (menu_number == 2) ? decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_wifi_attacks_64 : bitmap_wifi_attacks_32)
-                          : (menu_number == 3) ? decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_ble_jammer_64 : bitmap_ble_jammer_32)
-                          : (menu_number == 4) ? decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_zigbee_jammer_64 : bitmap_zigbee_jammer_32)
-                          : (menu_number == 5) ? decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_misc_jammer_64 : bitmap_misc_jammer_32)
-                          : (menu_number == 6) ? decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_settings_64 : bitmap_settings_32)
-                          : (menu_number == 7) ? decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_misc_jammer_64 : bitmap_misc_jammer_32)
-                          : (menu_number == 8) ? decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_misc_jammer_64 : bitmap_misc_jammer_32)
-                          : (menu_number == 9) ? decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_misc_jammer_64 : bitmap_misc_jammer_32)
-                                               : decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_pls_reboot_64 : bitmap_pls_reboot_32);
-  display.drawBitmap(0, 0, bitmap, SCREEN_WIDTH, SCREEN_HEIGHT, WHITE);
+  display.setTextSize(1);
+  display.setTextColor(WHITE, BLACK);
+
+  display.setCursor(0, 0);
+  display.print("Menu");
+  display.setCursor(SCREEN_WIDTH - 30, 0);
+  display.print(String(menuNum + 1));
+  display.print("/13");
+  display.drawFastHLine(0, 9, SCREEN_WIDTH, WHITE);
+
+  for ( int i = 0; i < maxVisible; i++ )
+  {
+    int idx = scroll + i;
+    if ( idx >= 13 )
+      break;
+    int y = 11 + i * lineHeight;
+    if ( idx == menuNum )
+    {
+      display.fillRect(0, y - 1, SCREEN_WIDTH, lineHeight, WHITE);
+      display.setTextColor(BLACK, WHITE);
+    }
+    else
+    {
+      display.setTextColor(WHITE, BLACK);
+    }
+    display.setCursor(3, y);
+    display.print(titles[idx]);
+  }
+
   display.display();
 }
 
@@ -85,6 +128,22 @@ void handlerSetSettings()
   password             = server.arg("password");
   access_point         = server.arg("ap").toInt();
   jam_delay            = server.arg("delay").toInt();
+
+  // Never persist values that would silently break the device: a screen
+  // height other than 32/64 renders nothing and a PA index outside 0..3
+  // maps to an undefined rf24_pa_dbm_e.
+  if ( SCREEN_HEIGHT != 32 && SCREEN_HEIGHT != 64 )
+    SCREEN_HEIGHT = 64;
+  if ( nrf_pa < 0 || nrf_pa > 3 )
+    nrf_pa = 3;
+  if ( jam_delay < 0 )
+    jam_delay = 0;
+  if ( jam_delay > 10000 )
+    jam_delay = 10000;
+  if ( Separate_or_together < 0 || Separate_or_together > 1 )
+    Separate_or_together = 0;
+  if ( access_point < 0 || access_point > 1 )
+    access_point = 0;
 
   String beacon_list = server.arg("beacon");
   String ce_list     = server.arg("ce");
@@ -164,6 +223,67 @@ void handlerSetSettings()
   }
 
   server.send(200, "text/plain", "OK");
+}
+
+// ---------------------------------------------------------------------------
+// Settings persistence
+// ---------------------------------------------------------------------------
+// handlerSetSettings() writes every one of these keys, but nothing ever read
+// them back.  After a power cycle the device therefore ran with nrf_pa = 0
+// (RF24_PA_MIN, -18 dBm), jam_delay = 0 and SCREEN_HEIGHT = 0 (which makes
+// every drawBitmap() call render nothing).  This restores them all.
+// ---------------------------------------------------------------------------
+void loadSettings()
+{
+  baudrate             = prefs.getInt("baudrate", 115200);
+  logo                 = prefs.getInt("logo_configs", 0);
+  display_setting      = prefs.getInt("display_configs", 0);
+  SCREEN_HEIGHT        = prefs.getInt("screen_height", 64);
+  buttons              = prefs.getInt("buttons_configs", 2);
+  Separate_or_together = prefs.getInt("SorT_configs", 0);
+  nrf_pa               = prefs.getInt("PA_configs", 3);
+  bluetooth_jam_method = prefs.getInt("bt_configs", 0);
+  drone_jam_method     = prefs.getInt("drone_configs", 0);
+  misc_jam_method      = prefs.getInt("misc_configs", 0);
+  access_point         = prefs.getInt("AP_configs", 0);
+  jam_delay            = prefs.getInt("jam_delay", 0);
+
+  // One-time migration.  The settings page used to default PA to 0 ("Lowest",
+  // RF24_PA_MIN = -18 dBm) and delay to 0, and pressing Save once (e.g. to set
+  // the nRF24 pins) persisted those values.  Every jammer then ran 30+ dB down
+  // forever.  Bump cfg_ver so an intentional "Lowest" choice is preserved
+  // from now on.
+  const int CFG_VERSION = 2;
+  int       cfgVer      = prefs.getInt("cfg_ver", 1);
+  if ( cfgVer < CFG_VERSION )
+  {
+    if ( nrf_pa == 0 )
+      nrf_pa = 3;
+    prefs.putInt("PA_configs", nrf_pa);
+    prefs.putInt("cfg_ver", CFG_VERSION);
+    Serial.println("[settings] migrated PA to maximum (was the old default of -18 dBm)");
+  }
+
+  // Sanitise anything that could brick the display or silently kill the PA.
+  if ( SCREEN_HEIGHT != 32 && SCREEN_HEIGHT != 64 )
+    SCREEN_HEIGHT = 64;
+  if ( nrf_pa < 0 || nrf_pa > 3 )
+    nrf_pa = 3;
+  if ( jam_delay < 0 )
+    jam_delay = 0;
+  if ( jam_delay > 10000 )
+    jam_delay = 10000;
+  if ( Separate_or_together < 0 || Separate_or_together > 1 )
+    Separate_or_together = 0;
+  if ( access_point < 0 || access_point > 1 )
+    access_point = 0;
+  if ( buttons < 0 || buttons > 2 )
+    buttons = 2;
+
+  prefs.getBytes("SSIDs_Array", SSIDs_Array, sizeof(SSIDs_Array));
+
+  Serial.printf("[settings] PA=%d delay=%d height=%d sweep=%d AP=%d modules=%d\n",
+                nrf_pa, jam_delay, SCREEN_HEIGHT, Separate_or_together, access_point, nrf24_count);
 }
 
 void handlenRF24Init()
@@ -320,7 +440,10 @@ int detectNRF24Modules(int *found_ce, int *found_csn)
   }
 
   int  ce_list[30];
+  int  csn_of[30]; // the CSN each detected CE was actually proven against
   int  ce_count = 0;
+  bool csn_done[30] = {false};
+
   for ( int ce = 0; ce < SOC_GPIO_PIN_COUNT; ce++ )
   {
     if ( !isSafePin(ce) )
@@ -334,6 +457,9 @@ int detectNRF24Modules(int *found_ce, int *found_csn)
 
     for ( int i = 0; i < csn_count; i++ )
     {
+      if ( csn_done[i] )
+        continue;
+
       int csn_pin = csn_list[i];
 
       writeReg(csn_pin, 0x01, 0x00);
@@ -342,10 +468,28 @@ int detectNRF24Modules(int *found_ce, int *found_csn)
 
       writeReg(csn_pin, 0x07, 0x70);
 
+      // Hold every other candidate CE LOW before pulsing this one.
+      //
+      // The previous code drove all other safe pins HIGH here.  That silently
+      // raised the REAL CE lines, so the module transmitted on its own, TX_DS
+      // was set no matter which pin was pulsed, and *any* free GPIO was
+      // accepted as "the" CE.  That is exactly how unconnected pins 4 and 5
+      // were reported as CE for modules 0 and 1.
       for ( int p = 0; p < SOC_GPIO_PIN_COUNT; p++ )
       {
-        if ( isSafePin(p) && p != csn_pin )
-          digitalWrite(p, HIGH);
+        if ( !isSafePin(p) || p == csn_pin )
+          continue;
+        bool is_csn_pin = false;
+        for ( int k = 0; k < csn_count; k++ )
+        {
+          if ( csn_list[k] == p )
+          {
+            is_csn_pin = true;
+            break;
+          }
+        }
+        if ( !is_csn_pin )
+          digitalWrite(p, LOW);
       }
       hp->beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE0));
       digitalWrite(csn_pin, LOW);
@@ -364,11 +508,39 @@ int detectNRF24Modules(int *found_ce, int *found_csn)
 
       delay(5);
 
-      uint8_t status = readReg(csn_pin, 0x07);
+      // Read STATUS with the other CE lines still held low, otherwise the
+      // module can start a second transmission during the read.
+      uint8_t status = 0;
+      for ( int p = 0; p < SOC_GPIO_PIN_COUNT; p++ )
+      {
+        if ( !isSafePin(p) || p == csn_pin )
+          continue;
+        bool is_csn_pin = false;
+        for ( int k = 0; k < csn_count; k++ )
+        {
+          if ( csn_list[k] == p )
+          {
+            is_csn_pin = true;
+            break;
+          }
+        }
+        if ( !is_csn_pin )
+          digitalWrite(p, LOW);
+      }
+      hp->beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE0));
+      digitalWrite(csn_pin, LOW);
+      hp->transfer(0x07);
+      status = hp->transfer(0xFF);
+      digitalWrite(csn_pin, HIGH);
+      hp->endTransaction();
+
       if ( (status & 0x20) == 0 )
         continue;
 
-      ce_list[ce_count++] = ce;
+      ce_list[ce_count] = ce;
+      csn_of[ce_count]  = csn_pin;
+      ce_count++;
+      csn_done[i] = true;
       break;
     }
   }
@@ -378,8 +550,11 @@ int detectNRF24Modules(int *found_ce, int *found_csn)
   int n = (ce_count < csn_count) ? ce_count : csn_count;
   for ( int i = 0; i < n; i++ )
   {
+    // Pair each CE with the CSN it was proven against.  Pairing by index (the
+    // old behaviour) shuffled CE/CSN whenever the two scans finished in a
+    // different order.
     found_ce[i]  = ce_list[i];
-    found_csn[i] = csn_list[i];
+    found_csn[i] = csn_of[i];
   }
 
   // Restore non-detected probed pins to INPUT to avoid line contention
@@ -1347,6 +1522,99 @@ updateJoystickButtons();
   }
 }
 
+// ---------------------------------------------------------------------------
+// Peripheral jammer sub-menu (HID / RC)
+// ---------------------------------------------------------------------------
+// Same joystick gestures as the rest of the UI:
+//   Next / Previous  -> move the highlight
+//   OK single click  -> start the highlighted jam (OK again stops it)
+//   OK long press    -> back to the main menu
+// ---------------------------------------------------------------------------
+static void runJamMenu(const char *title, const char *const *labels, void (*const *actions)(), int itemCount)
+{
+  int current = 0;
+
+  auto draw = [&]() {
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setTextColor(WHITE, BLACK);
+    display.setCursor(0, 0);
+    display.print(title);
+    display.drawFastHLine(0, 9, SCREEN_WIDTH, WHITE);
+
+    for ( int i = 0; i < itemCount; i++ )
+    {
+      int y = 13 + i * 10;
+      if ( i == current )
+      {
+        display.fillRect(0, y - 1, SCREEN_WIDTH, 10, WHITE);
+        display.setTextColor(BLACK, WHITE);
+      }
+      else
+      {
+        display.setTextColor(WHITE, BLACK);
+      }
+      display.setCursor(3, y);
+      display.print(labels[i]);
+    }
+
+    display.setTextColor(WHITE, BLACK);
+    if ( SCREEN_HEIGHT == 64 )
+    {
+      display.setCursor(0, SCREEN_HEIGHT - 8);
+      display.print("Hold OK = back");
+    }
+    display.display();
+  };
+
+  draw();
+
+  while ( true )
+  {
+    updateJoystickButtons();
+
+    if ( btnNext.isSingle() )
+    {
+      current = (current + 1) % itemCount;
+      draw();
+    }
+    if ( btnPrevious.isSingle() )
+    {
+      current = (current - 1 + itemCount) % itemCount;
+      draw();
+    }
+    if ( btnOK.isSingle() )
+    {
+      // CW = true is essential: without a constant carrier these jammers only
+      // fire isolated packets and produce no usable interference.
+      jamHandler(actions[current], String(title),
+                 decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_misc_jammer_64 : bitmap_misc_jammer_32),
+                 true, false);
+      draw();
+    }
+    if ( btnOK.isHolded() )
+    {
+      updateDisplay(menu_number);
+      return;
+    }
+    delay(1);
+  }
+}
+
+void hid_select()
+{
+  static const char *const labels[] = {"All (ch 2-72)", "Logitech Unify", "Microsoft HID"};
+  static void (*const actions[])()  = {hid_wireless_jam, logitech_unifying_jam, ms_wireless_jam};
+  runJamMenu("HID Jammer", labels, actions, 3);
+}
+
+void rc_select()
+{
+  static const char *const labels[] = {"All (ch 0-125)", "FlySky AFHDS", "Spektrum DSM", "FrSky D8/D16"};
+  static void (*const actions[])()  = {rc_controller_jam, flysky_jam, spektrum_jam, frsky_jam};
+  runJamMenu("RC Jammer", labels, actions, 4);
+}
+
 void ble_select()
 {
   auto display_info = [&](int flag) -> void {
@@ -1363,7 +1631,7 @@ void ble_select()
     display.display();
     if ( flag )
     {
-      jamHandler(ble_advertising_jam, String("BLE AD Jam"), decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_ble_jam_64 : bitmap_ble_jam_32), false, true);
+      jamHandler(ble_advertising_jam, String("BLE AD Jam"), decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_ble_jam_64 : bitmap_ble_jam_32), true, true);
     }
     else
     {
@@ -2016,6 +2284,10 @@ void setup()
   if ( nrf24_count == 0 )
     handlenRF24Scan();
 
+  // Restore every persisted setting (PA level, dwell, screen height, sweep
+  // mode, AP mode) BEFORE anything uses them.
+  loadSettings();
+
   if ( !prefs.isKey("SSIDs_Array") )
     {
       memset(SSIDs_Array, 0, sizeof(SSIDs_Array));
@@ -2055,9 +2327,16 @@ void setup()
     server.on("/wifi_deauth_scan", []() { attackScanHandler(String("WiFi Deauthing"), wifi_deauth_scan, decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_wifi_deauth_64 : bitmap_wifi_deauth_32)); });
     server.on("/wifi_random_spam", []() { attackScanHandler(String("WiFi Beacon Spam"), wifi_beacon_spam_random, decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_beacon_spaming_64 : bitmap_beacon_spaming_32)); });
     server.on("/wifi_array_spam", []() { attackScanHandler(String("WiFi Beacon Spam"), wifi_beacon_spam_array, decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_beacon_spaming_64 : bitmap_beacon_spaming_32)); });
-    server.on("/ble_advertising_jam", []() { jamHandler(ble_advertising_jam, String("BLE Jamming"), decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_ble_jam_64 : bitmap_ble_jam_32), false, false); });
+    server.on("/ble_advertising_jam", []() { jamHandler(ble_advertising_jam, String("BLE Jamming"), decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_ble_jam_64 : bitmap_ble_jam_32), true, false); });
     server.on("/ble_data_jam", []() { jamHandler(ble_data_jam, String("BLE Jamming"), decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_ble_jam_64 : bitmap_ble_jam_32), true, false); });
     server.on("/zigbee_jam", []() { jamHandler(zigbee_jam, String("Zigbee Jamming"), decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_zigbee_jam_64 : bitmap_zigbee_jam_32), false, false); });
+
+    // HID / RC / Apple were previously only reachable from the WebSerial
+    // console.  These routes give the browser (and curl / a script) the same
+    // entry points as the terminal and the joystick.
+    server.on("/hid_jam", []() { jamHandler(hid_wireless_jam, String("HID Jamming"), decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_misc_jammer_64 : bitmap_misc_jammer_32), true, false); });
+    server.on("/rc_jam", []() { jamHandler(rc_controller_jam, String("RC Jamming"), decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_drone_jammer_64 : bitmap_drone_jammer_32), true, false); });
+    server.on("/ble_apple", []() { jamHandler(ble_apple_flood_task, String("Apple BLE Flood"), decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_ble_jammer_64 : bitmap_ble_jammer_32), false, false); });
     server.on("/web_serial", []() { sendHtmlAndExecute(html_webserial, html_webserial_len); });
     server.on("/misc_jam", miscChannelsHandler);
     server.on("/wifi_selected_jam", wifiChannelsHandler);
@@ -2115,7 +2394,7 @@ void setup()
   Serial.println(logotype + "\n\n");
 
   initJoystick();
-  buttons = 2; // Always use joystick (3-button equivalent)
+  buttons = 2; // Joystick uses 3-way navigation (OK = SW, Next, Previous)
 
   btnOK.setTickMode(false);
   btnNext.setTickMode(false);
@@ -2184,31 +2463,24 @@ void setup()
 
 void executeAction(int menuNum)
 {
-  if ( nrf24_count <= 0 )
+  if ( menuNum == 6 )
   {
-    display.clearDisplay();
-    display.setCursor(40, 0);
-    display.println("WARNING");
-
-    display.setCursor(5, 10);
-    display.println("nRF24 not configured");
-
-    display.setCursor(7, 20);
-    display.println("Configure in web UI");
-
-    display.display();
-    while ( nrf24_count <= 0 )
-    {
-      if ( webServerStarted )
-      {
-        server.handleClient();
-      }
-      if ( dnsServerStarted )
-      {
-        dnsServer.processNextRequest();
-      }
-      delay(100);
-    }
+    settings();
+    updateDisplay(menu_number);
+    return;
+  }
+  if ( menuNum == 2 )
+  {
+    wifi_select();
+    updateDisplay(menu_number);
+    return;
+  }
+  if ( menuNum == 12 )
+  {
+    // Apple Continuity flood runs on the ESP32's own BLE radio, so no nRF24 is required.
+    jamHandler(ble_apple_flood_task, String("Apple BLE Flood"), decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_ble_jammer_64 : bitmap_ble_jammer_32), false, false);
+    updateDisplay(menu_number);
+    return;
   }
   if ( menuNum == 5 )
   {
@@ -2222,21 +2494,36 @@ void executeAction(int menuNum)
     updateDisplay(menu_number);
     return;
   }
+  if ( menuNum == 10 )
+  {
+    hid_select();
+    updateDisplay(menu_number);
+    return;
+  }
+  if ( menuNum == 11 )
+  {
+    rc_select();
+    updateDisplay(menu_number);
+    return;
+  }
 
-  display.clearDisplay();
-  const uint8_t *bitmap = (menu_number == 0)   ? decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_bluetooth_jam_64 : bitmap_bluetooth_jam_32)
-                          : (menu_number == 1) ? decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_drone_jam_64 : bitmap_drone_jam_32)
-                          : (menu_number == 2) ? decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_wifi_all_64 : bitmap_wifi_all_32)
-                          : (menu_number == 4) ? decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_zigbee_jam_64 : bitmap_zigbee_jam_32)
-                          : (menu_number == 6) ? decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_settings_64 : bitmap_settings_32)
-                          : (menu_number == 7) ? decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_misc_jammer_64 : bitmap_misc_jammer_32)
-                          : (menu_number == 8) ? decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_misc_jammer_64 : bitmap_misc_jammer_32)
-                          : (menu_number == 9) ? decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_misc_jammer_64 : bitmap_misc_jammer_32)
-                          : (menu_number == 10) ? decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_pls_reboot_64 : bitmap_pls_reboot_32)
-                                               : NULL;
+  if ( nrf24_count <= 0 )
+  {
+    display.clearDisplay();
+    display.setCursor(40, 0);
+    display.println("WARNING");
 
-  display.drawBitmap(0, 0, bitmap, SCREEN_WIDTH, SCREEN_HEIGHT, WHITE);
-  display.display();
+    display.setCursor(5, 10);
+    display.println("nRF24 not configured");
+
+    display.setCursor(7, 20);
+    display.println("Configure in web UI");
+
+    display.display();
+    delay(1500);
+    updateDisplay(menu_number);
+    return;
+  }
 
   switch ( menu_number )
   {
@@ -2246,14 +2533,8 @@ void executeAction(int menuNum)
   case 1:
     jamHandler(drone_jam, String("Drone Jamming"), decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_drone_jam_64 : bitmap_drone_jam_32), true, false);
     break;
-  case 2:
-    wifi_select();
-    break;
   case 4:
     jamHandler(zigbee_jam, String("Zigbee Jamming"), decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_zigbee_jam_64 : bitmap_zigbee_jam_32), false, false);
-    break;
-  case 6:
-    settings();
     break;
   case 7:
     jamHandler(full_24g_jam, String("Full 2.4 GHz Jamming"), decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_misc_jammer_64 : bitmap_misc_jammer_32), false, false);
@@ -2264,14 +2545,10 @@ void executeAction(int menuNum)
   case 9:
     jamHandler(fpv_video_jam, String("FPV/Video Jamming"), decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_misc_jammer_64 : bitmap_misc_jammer_32), false, false);
     break;
-  case 10:
-    prefs.putInt("AP_configs", 0);
-    break;
   default:
     break;
   }
-  if ( menuNum != 10 )
-    updateDisplay(menuNum);
+  updateDisplay(menu_number);
 }
 
 void loop()
@@ -2295,7 +2572,7 @@ updateJoystickButtons();
   {
     if ( btnOK.isSingle() )
     {
-      menu_number = (menu_number + 1) % 10;
+      menu_number = (menu_number + 1) % 13;
       updateDisplay(menu_number);
     }
     if ( btnOK.isHolded() )
@@ -2312,7 +2589,7 @@ updateJoystickButtons();
     }
     if ( btnNext.isSingle() )
     {
-      menu_number = (menu_number + 1) % 10;
+      menu_number = (menu_number + 1) % 13;
       updateDisplay(menu_number);
     }
   }
@@ -2325,13 +2602,13 @@ updateJoystickButtons();
 
     if ( btnNext.isSingle() )
     {
-      menu_number = (menu_number + 1) % 10;
+      menu_number = (menu_number + 1) % 13;
       updateDisplay(menu_number);
     }
 
     if ( btnPrevious.isSingle() )
     {
-      menu_number = (menu_number - 1 + 10) % 10;
+      menu_number = (menu_number - 1 + 13) % 13;
       updateDisplay(menu_number);
     }
   }

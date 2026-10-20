@@ -13,6 +13,15 @@ int        nrf_pa_level;
 static int global_ch1, global_ch2;
 bool       stopJam = false;
 
+// Guards against a second jam being started while one owns the radios.
+static bool s_jamActive = false;
+
+// True while a jam task owns the radios (used to reject conflicting commands).
+bool jamIsActive()
+{
+  return s_jamActive;
+}
+
 void InitRadios()
 {
   for ( int i = 0; i < nrf24_count; i++ )
@@ -42,17 +51,37 @@ void HSPI_init()
   {
     hp = new SPIClass(HSPI);
     hp->begin(14, 12, 13, -1);
-    hp->setFrequency(16000000);
+    hp->setFrequency(8000000);
     hp->setBitOrder(MSBFIRST);
     hp->setDataMode(SPI_MODE0);
   }
+
+  // NOTE: jam_delay is intentionally NOT clamped here.  In constant-carrier
+  // mode a very fast hop rate (jam_delay = 0) produces a chirp that smears
+  // energy across the whole band, which is what makes bluetooth_jam() and
+  // drone_jam() effective.  Only packet-based modes need the PLL to settle,
+  // and they wait NRF24_MIN_DWELL_US explicitly.
+
   for ( int i = 0; i < nrf24_count; i++ )
   {
-    radios[i]->begin(hp);
+    // begin() returns false when the module does not answer on SPI.  The old
+    // code ignored that return value, so a dead or miswired module looked like
+    // a perfectly configured jammer that simply produced no RF.
+    bool ok = radios[i]->begin(hp);
+    if ( ok )
+      ok = radios[i]->isChipConnected();
+    if ( ok )
+    {
+      Serial.printf("[nRF24] module %d ready (CE=%d, CSN=%d)\n", i, ce_pins[i], csn_pins[i]);
+    }
+    else
+    {
+      Serial.printf("[nRF24] module %d NOT responding on SPI (CE=%d, CSN=%d)\n", i, ce_pins[i], csn_pins[i]);
+    }
     radios[i]->setAutoAck(false);
     radios[i]->stopListening();
     radios[i]->setRetries(0, 0);
-    radios[i]->setPayloadSize(5);
+    radios[i]->setPayloadSize(32);
     radios[i]->setAddressWidth(3);
     switch ( nrf_pa )
     {
@@ -86,7 +115,7 @@ void HSPI_initBare()
   {
     hp = new SPIClass(HSPI);
     hp->begin(14, 12, 13, -1);
-    hp->setFrequency(16000000);
+    hp->setFrequency(8000000);
     hp->setBitOrder(MSBFIRST);
     hp->setDataMode(SPI_MODE0);
   }
@@ -103,6 +132,31 @@ void HSPI_deinit()
   // so it cannot be sampled HIGH during resets (which causes 1.8V flash read err 1000).
   pinMode(12, INPUT_PULLDOWN);
   digitalWrite(2, LOW);
+}
+
+// ---------------------------------------------------------------------------
+// Carrier retune
+// ---------------------------------------------------------------------------
+// The constant carrier is armed ONCE by startConstCarrier().  Retuning with
+// setChannel() then sweeps the live carrier across the band, which radiates a
+// broadband chirp - that is what makes these sweep jammers effective.
+//
+// Do NOT stop/restart the carrier on every hop: that turns a ~2 us chirp step
+// into an ~800 us stepped carrier, cutting spectral coverage by orders of
+// magnitude and making the jammer appear dead.
+// ---------------------------------------------------------------------------
+static inline void cwHop(RF24 *r, uint8_t ch)
+{
+  r->setChannel(ch);
+}
+
+// Packet-mode hop: let the PLL settle, then use the BLOCKING write() so the
+// packet actually finishes on this channel before the next retune.
+static inline void pktHop(RF24 *r, uint8_t ch, const void *buf, uint8_t len)
+{
+  r->setChannel(ch);
+  delayMicroseconds(NRF24_MIN_DWELL_US);
+  r->write(buf, len);
 }
 void bluetooth_jam()
 {
@@ -135,7 +189,7 @@ void bluetooth_jam()
           {
             if ( i < count[j] )
             {
-              radios[j]->setChannel(bluetooth_channels[start[j] + i]);
+              cwHop(radios[j], bluetooth_channels[start[j] + i]);
             }
           }
           delayMicroseconds(jam_delay);
@@ -146,7 +200,7 @@ void bluetooth_jam()
         for ( int j = 0; j < nrf24_count; j++ )
         {
           int random_channel = random(80);
-          radios[j]->setChannel(random_channel);
+          cwHop(radios[j], random_channel);
         }
 
         delayMicroseconds(jam_delay);
@@ -175,7 +229,7 @@ void bluetooth_jam()
           {
             if ( i < count[j] )
             {
-              radios[j]->setChannel(start[j] + i);
+              cwHop(radios[j], start[j] + i);
             }
           }
           delayMicroseconds(jam_delay);
@@ -190,7 +244,7 @@ void bluetooth_jam()
         {
           for ( int j = 0; j < nrf24_count; j++ )
           {
-            radios[j]->setChannel(bluetooth_channels[ch]);
+            cwHop(radios[j], bluetooth_channels[ch]);
           }
 
           delayMicroseconds(jam_delay);
@@ -201,7 +255,7 @@ void bluetooth_jam()
         int random_channel = random(80);
         for ( int j = 0; j < nrf24_count; j++ )
         {
-          radios[j]->setChannel(random_channel);
+          cwHop(radios[j], random_channel);
         }
 
         delayMicroseconds(jam_delay);
@@ -212,7 +266,7 @@ void bluetooth_jam()
         {
           for ( int j = 0; j < nrf24_count; j++ )
           {
-            radios[j]->setChannel(ch);
+            cwHop(radios[j], ch);
           }
 
           delayMicroseconds(jam_delay);
@@ -234,7 +288,7 @@ void drone_jam()
         for ( int j = 0; j < nrf24_count; j++ )
         {
           int random_channel = random(125);
-          radios[j]->setChannel(random_channel);
+          cwHop(radios[j], random_channel);
         }
 
         delayMicroseconds(jam_delay);
@@ -263,7 +317,7 @@ void drone_jam()
           {
             if ( i < count[j] )
             {
-              radios[j]->setChannel(start[j] + i);
+              cwHop(radios[j], start[j] + i);
             }
           }
           delayMicroseconds(jam_delay);
@@ -277,7 +331,7 @@ void drone_jam()
         int random_channel = random(125);
         for ( int j = 0; j < nrf24_count; j++ )
         {
-          radios[j]->setChannel(random_channel);
+          cwHop(radios[j], random_channel);
         }
 
         delayMicroseconds(jam_delay);
@@ -288,7 +342,7 @@ void drone_jam()
         {
           for ( int j = 0; j < nrf24_count; j++ )
           {
-            radios[j]->setChannel(ch);
+            cwHop(radios[j], ch);
           }
 
           delayMicroseconds(jam_delay);
@@ -314,10 +368,11 @@ void ble_advertising_jam()
         int count = base + (j < rem ? 1 : 0);
         for ( int i = 0; i < count; i++, ch++ )
         {
-          radios[j]->setChannel(ble_channels[ch]);
-          radios[j]->writeFast(&jam_text, sizeof(jam_text));
+          cwHop(radios[j], ble_channels[ch]);
         }
       }
+      // Give the carrier time to settle on each advertising channel.
+      delayMicroseconds(jam_delay);
     }
     else
     {
@@ -325,9 +380,9 @@ void ble_advertising_jam()
       {
         for ( int j = 0; j < nrf24_count; j++ )
         {
-          radios[j]->setChannel(ble_channels[ch]);
-          radios[j]->writeFast(&jam_text, sizeof(jam_text));
+          cwHop(radios[j], ble_channels[ch]);
         }
+        delayMicroseconds(jam_delay);
       }
     }
   }
@@ -362,7 +417,7 @@ void ble_data_jam()
         {
           if ( i < count[j] )
           {
-            radios[j]->setChannel(2 + (start[j] + i) * 2);
+            cwHop(radios[j], 2 + (start[j] + i) * 2);
           }
         }
         delayMicroseconds(jam_delay);
@@ -374,7 +429,7 @@ void ble_data_jam()
       {
         for ( int j = 0; j < nrf24_count; j++ )
         {
-          radios[j]->setChannel(ch);
+          cwHop(radios[j], ch);
         }
 
         delayMicroseconds(jam_delay);
@@ -401,8 +456,7 @@ void wifi_jam()
           int count = base + (j < rem ? 1 : 0);
           for ( int i = 0; i < count; i++, ch++ )
           {
-            radios[j]->setChannel(ch);
-            radios[j]->writeFast(&jam_text, sizeof(jam_text));
+            cwHop(radios[j], ch);
           }
         }
       }
@@ -412,8 +466,7 @@ void wifi_jam()
         {
           for ( int j = 0; j < nrf24_count; j++ )
           {
-            radios[j]->setChannel(ch);
-            radios[j]->writeFast(&jam_text, sizeof(jam_text));
+            cwHop(radios[j], ch);
           }
         }
       }
@@ -451,8 +504,7 @@ void wifi_scan_jam()
           {
             if ( ch >= 1 && ch <= 125 )
             {
-              radios[j]->setChannel(ch);
-              radios[j]->writeFast(&jam_text, sizeof(jam_text));
+              cwHop(radios[j], ch);
             }
           }
         }
@@ -465,8 +517,7 @@ void wifi_scan_jam()
           {
             if ( ch >= 1 && ch <= 125 )
             {
-              radios[j]->setChannel(ch);
-              radios[j]->writeFast(&jam_text, sizeof(jam_text));
+              cwHop(radios[j], ch);
             }
           }
         }
@@ -492,8 +543,7 @@ void wifi_channel()
         int count = base + (j < rem ? 1 : 0);
         for ( int i = 0; i < count; i++, ch++ )
         {
-          radios[j]->setChannel(ch);
-          radios[j]->writeFast(&jam_text, sizeof(jam_text));
+          cwHop(radios[j], ch);
         }
       }
     }
@@ -503,8 +553,7 @@ void wifi_channel()
       {
         for ( int j = 0; j < nrf24_count; j++ )
         {
-          radios[j]->setChannel(ch);
-          radios[j]->writeFast(&jam_text, sizeof(jam_text));
+          cwHop(radios[j], ch);
         }
       }
     }
@@ -529,8 +578,7 @@ void zigbee_jam()
           int count = base + (j < rem ? 1 : 0);
           for ( int i = 0; i < count; i++, ch++ )
           {
-            radios[j]->setChannel(ch);
-            radios[j]->writeFast(&jam_text, sizeof(jam_text));
+            cwHop(radios[j], ch);
           }
         }
       }
@@ -540,8 +588,7 @@ void zigbee_jam()
         {
           for ( int j = 0; j < nrf24_count; j++ )
           {
-            radios[j]->setChannel(ch);
-            radios[j]->writeFast(&jam_text, sizeof(jam_text));
+            cwHop(radios[j], ch);
           }
         }
       }
@@ -578,11 +625,10 @@ void misc_jam()
         {
           if ( i < count[j] )
           {
-            radios[j]->setChannel(global_ch1 + start[j] + i);
             if ( misc_jam_method == 1 )
-            {
-              radios[j]->writeFast(&jam_text, sizeof(jam_text));
-            }
+              pktHop(radios[j], global_ch1 + start[j] + i, jam_text, sizeof(jam_text));
+            else
+              cwHop(radios[j], global_ch1 + start[j] + i);
           }
         }
         if ( misc_jam_method == 0 )
@@ -597,11 +643,10 @@ void misc_jam()
       {
         for ( int j = 0; j < nrf24_count; j++ )
         {
-          radios[j]->setChannel(ch);
           if ( misc_jam_method == 1 )
-          {
-            radios[j]->writeFast(&jam_text, sizeof(jam_text));
-          }
+            pktHop(radios[j], ch, jam_text, sizeof(jam_text));
+          else
+            cwHop(radios[j], ch);
         }
 
         if ( misc_jam_method == 0 )
@@ -637,8 +682,7 @@ void full_24g_jam()
         {
           if ( i < count[j] )
           {
-            radios[j]->setChannel(1 + start[j] + i);
-            radios[j]->writeFast(&jam_text, sizeof(jam_text));
+            cwHop(radios[j], 1 + start[j] + i);
           }
         }
         delayMicroseconds(jam_delay);
@@ -650,8 +694,7 @@ void full_24g_jam()
       {
         for ( int j = 0; j < nrf24_count; j++ )
         {
-          radios[j]->setChannel(ch);
-          radios[j]->writeFast(&jam_text, sizeof(jam_text));
+          cwHop(radios[j], ch);
         }
         delayMicroseconds(jam_delay);
       }
@@ -685,8 +728,7 @@ void usb_24g_jam()
         {
           if ( i < count[j] )
           {
-            radios[j]->setChannel(2 + start[j] + i);
-            radios[j]->writeFast(&jam_text, sizeof(jam_text));
+            cwHop(radios[j], 2 + start[j] + i);
           }
         }
         delayMicroseconds(jam_delay);
@@ -698,8 +740,7 @@ void usb_24g_jam()
       {
         for ( int j = 0; j < nrf24_count; j++ )
         {
-          radios[j]->setChannel(ch);
-          radios[j]->writeFast(&jam_text, sizeof(jam_text));
+          cwHop(radios[j], ch);
         }
         delayMicroseconds(jam_delay);
       }
@@ -733,8 +774,7 @@ void fpv_video_jam()
         {
           if ( i < count[j] )
           {
-            radios[j]->setChannel(45 + start[j] + i);
-            radios[j]->writeFast(&jam_text, sizeof(jam_text));
+            cwHop(radios[j], 45 + start[j] + i);
           }
         }
         delayMicroseconds(jam_delay);
@@ -746,8 +786,7 @@ void fpv_video_jam()
       {
         for ( int j = 0; j < nrf24_count; j++ )
         {
-          radios[j]->setChannel(ch);
-          radios[j]->writeFast(&jam_text, sizeof(jam_text));
+          cwHop(radios[j], ch);
         }
         delayMicroseconds(jam_delay);
       }
@@ -793,8 +832,7 @@ void hid_wireless_jam()
           if ( i < count[j] )
           {
             int ch = 2 + (start[j] + i) * 2; // even channels: 2,4,6,...,72
-            radios[j]->setChannel(ch);
-            radios[j]->writeFast(&jam_text, sizeof(jam_text));
+            cwHop(radios[j], ch);
           }
         }
         delayMicroseconds(jam_delay);
@@ -806,8 +844,7 @@ void hid_wireless_jam()
       {
         for ( int j = 0; j < nrf24_count; j++ )
         {
-          radios[j]->setChannel(ch);
-          radios[j]->writeFast(&jam_text, sizeof(jam_text));
+          cwHop(radios[j], ch);
         }
         delayMicroseconds(jam_delay);
       }
@@ -851,8 +888,7 @@ void logitech_unifying_jam()
         {
           if ( i < count[j] )
           {
-            radios[j]->setChannel(unifying_chs[start[j] + i]);
-            radios[j]->writeFast(&jam_text, sizeof(jam_text));
+            cwHop(radios[j], unifying_chs[start[j] + i]);
           }
         }
         delayMicroseconds(jam_delay);
@@ -864,8 +900,7 @@ void logitech_unifying_jam()
       {
         for ( int j = 0; j < nrf24_count; j++ )
         {
-          radios[j]->setChannel(unifying_chs[i]);
-          radios[j]->writeFast(&jam_text, sizeof(jam_text));
+          cwHop(radios[j], unifying_chs[i]);
         }
         delayMicroseconds(jam_delay);
       }
@@ -902,8 +937,7 @@ void ms_wireless_jam()
         {
           if ( i < count[j] )
           {
-            radios[j]->setChannel(2 + start[j] + i);
-            radios[j]->writeFast(&jam_text, sizeof(jam_text));
+            cwHop(radios[j], 2 + start[j] + i);
           }
         }
         delayMicroseconds(jam_delay);
@@ -915,8 +949,7 @@ void ms_wireless_jam()
       {
         for ( int j = 0; j < nrf24_count; j++ )
         {
-          radios[j]->setChannel(ch);
-          radios[j]->writeFast(&jam_text, sizeof(jam_text));
+          cwHop(radios[j], ch);
         }
         delayMicroseconds(jam_delay);
       }
@@ -959,8 +992,7 @@ void rc_controller_jam()
         {
           if ( i < count[j] )
           {
-            radios[j]->setChannel(start[j] + i);
-            radios[j]->writeFast(&jam_text, sizeof(jam_text));
+            cwHop(radios[j], start[j] + i);
           }
         }
         delayMicroseconds(jam_delay);
@@ -972,8 +1004,7 @@ void rc_controller_jam()
       {
         for ( int j = 0; j < nrf24_count; j++ )
         {
-          radios[j]->setChannel(ch);
-          radios[j]->writeFast(&jam_text, sizeof(jam_text));
+          cwHop(radios[j], ch);
         }
         delayMicroseconds(jam_delay);
       }
@@ -1018,8 +1049,7 @@ void flysky_jam()
         {
           if ( i < count[j] )
           {
-            radios[j]->setChannel(flysky_chs[start[j] + i]);
-            radios[j]->writeFast(&jam_text, sizeof(jam_text));
+            cwHop(radios[j], flysky_chs[start[j] + i]);
           }
         }
         delayMicroseconds(jam_delay);
@@ -1031,8 +1061,7 @@ void flysky_jam()
       {
         for ( int j = 0; j < nrf24_count; j++ )
         {
-          radios[j]->setChannel(flysky_chs[i]);
-          radios[j]->writeFast(&jam_text, sizeof(jam_text));
+          cwHop(radios[j], flysky_chs[i]);
         }
         delayMicroseconds(jam_delay);
       }
@@ -1068,8 +1097,7 @@ void spektrum_jam()
         {
           if ( i < count[j] )
           {
-            radios[j]->setChannel(start[j] + i);
-            radios[j]->writeFast(&jam_text, sizeof(jam_text));
+            cwHop(radios[j], start[j] + i);
           }
         }
         delayMicroseconds(jam_delay);
@@ -1081,8 +1109,7 @@ void spektrum_jam()
       {
         for ( int j = 0; j < nrf24_count; j++ )
         {
-          radios[j]->setChannel(ch);
-          radios[j]->writeFast(&jam_text, sizeof(jam_text));
+          cwHop(radios[j], ch);
         }
         delayMicroseconds(jam_delay);
       }
@@ -1118,8 +1145,7 @@ void frsky_jam()
         {
           if ( i < count[j] )
           {
-            radios[j]->setChannel(start[j] + i);
-            radios[j]->writeFast(&jam_text, sizeof(jam_text));
+            cwHop(radios[j], start[j] + i);
           }
         }
         delayMicroseconds(jam_delay);
@@ -1131,8 +1157,7 @@ void frsky_jam()
       {
         for ( int j = 0; j < nrf24_count; j++ )
         {
-          radios[j]->setChannel(ch);
-          radios[j]->writeFast(&jam_text, sizeof(jam_text));
+          cwHop(radios[j], ch);
         }
         delayMicroseconds(jam_delay);
       }
@@ -1164,16 +1189,146 @@ void ble_scan_flood_task()
 }
 
 // ---------------------------------------------------------------------------
+// RF self-test
+// ---------------------------------------------------------------------------
+// Proves the radios actually emit RF.  Module 0 is put into constant-carrier
+// mode on one channel while the remaining modules, tuned to the same channel in
+// RX mode, report carrier detect (register 0x09, bit 0).  The same receivers
+// are sampled with the carrier off first, so a pass cannot be a false positive.
+//
+// A pass means SPI, CE/CSN wiring, the PA supply and the antennas are all
+// working, and any remaining failure is protocol/physics rather than hardware.
+//
+// Requires at least 2 modules.  Returns true when at least one receiver saw the
+// carrier.  detected/total describe the receivers.
+bool rfTest(int *detected, int *total)
+{
+  *detected = 0;
+  *total    = 0;
+
+  if ( s_jamActive )
+  {
+    Serial.println("[rfTest] a jam is running - send 'stop' first");
+    return false;
+  }
+
+  if ( nrf24_count < 2 )
+  {
+    Serial.println("[rfTest] need at least 2 modules (1 transmitter + 1 receiver)");
+    return false;
+  }
+
+  const uint8_t ch = 45; // 2435 MHz - inside the HID / RC band
+  *total           = nrf24_count;
+
+  InitRadios();
+  HSPI_init();
+
+  // Test every module as a transmitter in turn.  This catches a single bad
+  // module or a mis-paired CE/CSN, which a single "module 0 transmits" test
+  // cannot.
+  for ( int tx = 0; tx < nrf24_count; tx++ )
+  {
+    for ( int i = 0; i < nrf24_count; i++ )
+    {
+      if ( i == tx )
+        continue;
+      radios[i]->setChannel(ch);
+      radios[i]->startListening();
+    }
+    delay(20);
+
+    int baseline = 0;
+    for ( int i = 0; i < nrf24_count; i++ )
+    {
+      if ( i != tx && radios[i]->testCarrier() )
+        baseline++;
+    }
+
+    radios[tx]->startConstCarrier(RF24_PA_MAX, ch);
+    delay(50);
+
+    int heard = 0;
+    for ( int i = 0; i < nrf24_count; i++ )
+    {
+      if ( i == tx )
+        continue;
+      if ( radios[i]->testCarrier() )
+        heard++;
+    }
+
+    radios[tx]->stopConstCarrier();
+    for ( int i = 0; i < nrf24_count; i++ )
+    {
+      if ( i != tx )
+        radios[i]->stopListening();
+    }
+
+    Serial.printf("[rfTest] module %d (CE=%d, CSN=%d): heard by %d/%d, baseline %d\n",
+                  tx, ce_pins[tx], csn_pins[tx], heard, nrf24_count - 1, baseline);
+    if ( heard > 0 )
+      (*detected)++;
+    delay(20);
+  }
+
+  DeinitRadios(false);
+  HSPI_deinit();
+
+  Serial.printf("[rfTest] result: %d/%d modules transmitted a carrier that the others heard\n", *detected, *total);
+  return *detected == *total;
+}
+
+// ---------------------------------------------------------------------------
 // jamHandler
 // ---------------------------------------------------------------------------
 bool jamHandler(void (*action)(), String htmlResponse, const unsigned char *bitmap, bool CW, bool mode, bool isMisc, bool scan, int ch1, int ch2)
 {
   (void)htmlResponse;
 
+  // Only one jam may own the radios at a time.  Without this, typing another
+  // "jam ..." command (or pressing OK on the joystick) while a jam is running
+  // re-initialises the SPI bus underneath the live task and wedges both.
+  if ( s_jamActive )
+  {
+    if ( webServerStarted && server.client() )
+      server.send(409, "text/plain", "a jam is already running\n");
+    return false;
+  }
+
+  bool isBleTask = ( action == ble_apple_flood_task ||
+                     action == ble_adv_flood_task ||
+                     action == ble_scan_flood_task );
+
+  // Every nRF24 jammer divides by nrf24_count.  Refuse to start instead of
+  // hitting a divide-by-zero panic when no module is configured.
+  if ( !isBleTask && nrf24_count <= 0 )
+  {
+    Serial.println("[jamHandler] refused: no nRF24 modules configured");
+    if ( webServerStarted && server.client() )
+      server.send(503, "text/plain", "no nRF24 modules configured\n");
+    return false;
+  }
+
+  s_jamActive             = true;
   global_ch1              = ch1;
   global_ch2              = ch2;
   stopJam                 = false;
   TaskHandle_t TaskHandle = NULL;
+
+  // These sweep jammers only retune the radio, so they need a constant
+  // carrier.  Several call sites still pass CW=false from the old packet-based
+  // implementation, which made them completely silent once writeFast() was
+  // removed.  Force the carrier on centrally so every entry point (web,
+  // terminal, joystick) behaves identically.
+  if ( action == wifi_jam || action == wifi_scan_jam || action == wifi_channel ||
+       action == zigbee_jam || action == full_24g_jam || action == usb_24g_jam ||
+       action == fpv_video_jam || action == ble_advertising_jam )
+    CW = true;
+
+  // NOTE: jam_delay is deliberately NOT clamped.  0 means the carrier is
+  // swept at full SPI speed (~2 us per channel), which produces the broadband
+  // chirp these jammers rely on.  Raising it turns the sweep into a stepped
+  // carrier with far less spectral coverage.
 
   if ( !isMisc )
   {
@@ -1228,15 +1383,24 @@ bool jamHandler(void (*action)(), String htmlResponse, const unsigned char *bitm
   // The BLE attack tasks use NimBLE + std::string + heap allocation and need
   // a much larger stack than the nRF24 channel-hoppers.  A 4 KB stack causes
   // a silent panic/reboot shortly after start.
-  uint32_t stackSize = 4096;
-  if ( action == ble_apple_flood_task ||
-       action == ble_adv_flood_task ||
-       action == ble_scan_flood_task )
-  {
-    stackSize = 16384;
-  }
+  uint32_t stackSize = isBleTask ? 16384 : 4096;
 
-  xTaskCreatePinnedToCore(reinterpret_cast<TaskFunction_t>(action), "Jammer", stackSize, NULL, 3, &TaskHandle, 0);
+  BaseType_t created = xTaskCreatePinnedToCore(reinterpret_cast<TaskFunction_t>(action), "Jammer", stackSize, NULL, 3, &TaskHandle, 0);
+  if ( created != pdPASS || TaskHandle == NULL )
+  {
+    // Ignoring this return value used to leave the UI spinning forever while
+    // waiting for a task that was never created.
+    Serial.println("[jamHandler] ERROR: could not create jam task (out of heap?)");
+    stopJam = true;
+    if ( isMisc )
+      DeinitRadios(misc_jam_method != 1);
+    else
+      DeinitRadios(CW);
+    HSPI_deinit();
+    s_jamActive = false;
+    updateDisplay(menu_number);
+    return false;
+  }
 
   updateJoystickButtons();
   bool SerialStop = true;
@@ -1246,6 +1410,13 @@ bool jamHandler(void (*action)(), String htmlResponse, const unsigned char *bitm
   {
     randomSeed(esp_random() + millis());
     updateJoystickButtons();
+
+    // NOTE: server.handleClient() must NOT be called here.  We are already
+    // inside a request handler, so WebServer keeps _currentStatus at
+    // HC_WAIT_READ and a nested call can never accept a new client - it only
+    // burns CPU and eventually closes the socket.  A running jam is therefore
+    // stopped with the joystick (OK) or with the "stop" command over USB
+    // serial, both of which are polled below.
     SerialStop = SerialCommands();
 
     if ( btnOK.isSingle() )
@@ -1260,10 +1431,16 @@ bool jamHandler(void (*action)(), String htmlResponse, const unsigned char *bitm
   }
 
   stopJam = true;
-  while ( eTaskGetState(TaskHandle) != eDeleted )
+
+  // Wait for the jam task to delete itself, but never block forever: a task
+  // that hard-faulted (or a BLE task that already called vTaskDelete) must not
+  // freeze the whole device.
+  uint32_t waitStart = millis();
+  while ( TaskHandle != NULL && eTaskGetState(TaskHandle) != eDeleted && (millis() - waitStart) < 5000 )
     delay(1);
 
-  TaskHandle = NULL;
+  TaskHandle  = NULL;
+  s_jamActive = false;
 
   if ( isMisc )
   {

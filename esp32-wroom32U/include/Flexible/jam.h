@@ -12,6 +12,21 @@ void HSPI_init();
 void HSPI_initBare();
 void HSPI_deinit();
 
+// Restores every setting written by handlerSetSettings() from NVS.  Without
+// this the device boots with nrf_pa = 0 (-18 dBm), jam_delay = 0 and
+// SCREEN_HEIGHT = 0, so jammers emit almost nothing and the OLED stays blank.
+void loadSettings();
+
+// Set by the "stop" serial / web command to end a running jam.
+extern bool stopJam;
+
+// RF self-test: module 0 transmits a constant carrier, modules 1..n-1 report
+// carrier detect.  Returns true when the RF path is verified working.
+bool rfTest(int *detected, int *total);
+
+// True while a jam task owns the radios.
+bool jamIsActive();
+
 // Existing jam functions
 void bluetooth_jam();
 void drone_jam();

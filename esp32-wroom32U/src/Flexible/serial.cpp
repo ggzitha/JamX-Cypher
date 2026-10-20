@@ -128,6 +128,7 @@ bool CommandsHandler(String command, bool web_command)
     printCmd("attack", "Start attacks", response, web_command);
     printCmd("stop", "Stop current jam/attack", response, web_command);
     printCmd("scan", "Start scanning", response, web_command);
+    printCmd("rftest", "Verify the nRF24 radios actually emit RF", response, web_command);
     printCmd("set", "Configure device", response, web_command);
     printCmd("info", "System information", response, web_command);
     printCmd("reboot", "Restart device", response, web_command);
@@ -140,6 +141,10 @@ bool CommandsHandler(String command, bool web_command)
 
   if ( args[0] == "stop" )
   {
+    // Returning false makes jamHandler()'s wait loop exit; setting stopJam
+    // makes the jam task itself exit.  The old code only did the former, so
+    // the radio kept transmitting until the task was deleted.
+    stopJam = true;
     printLine("Stopping all attacks...", response, web_command);
     if ( web_command )
       server.send(200, "text/html", response + "ok\n");
@@ -173,6 +178,36 @@ bool CommandsHandler(String command, bool web_command)
     }
     if ( web_command )
       server.send(200, "text/html", response + "ok\n");
+    return true;
+  }
+
+  if ( args[0] == "rftest" )
+  {
+    if ( !checkModules(response, web_command) )
+    {
+      if ( web_command )
+        server.send(200, "text/html", response + "ok\n");
+      return true;
+    }
+    printLine("RF self-test: module 0 transmits, the others listen...", response, web_command);
+    if ( web_command )
+      server.send(200, "text/html", response + "ok\n");
+
+    if ( jamIsActive() )
+    {
+      printLine("A jam is running - send 'stop' first.", response, web_command);
+      return true;
+    }
+
+    int detected = 0, total = 0;
+    bool ok = rfTest(&detected, &total);
+
+    printLine("", response, web_command);
+    printLine(String(detected) + "/" + String(total) + " receivers detected the carrier", response, web_command);
+    if ( ok )
+      printLine("RF path OK - the radios are emitting. Failures are protocol/physics.", response, web_command);
+    else
+      printLine("NO CARRIER DETECTED - check 3.3V PA supply, antenna, CE/CSN wiring.", response, web_command);
     return true;
   }
 
@@ -367,7 +402,7 @@ bool handleJamCommand(String *args, int argCount, bool web_command, String &resp
       printLine("Starting BLE advertising jammer...", response, web_command);
       if ( web_command )
         server.send(200, "text/html", response + "ok\n");
-      jamHandler(ble_advertising_jam, String("BLE Jamming"), decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_ble_jam_64 : bitmap_ble_jam_32), false, false);
+      jamHandler(ble_advertising_jam, String("BLE Jamming"), decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_ble_jam_64 : bitmap_ble_jam_32), true, false);
       return true;
     }
 
@@ -463,21 +498,21 @@ bool handleJamCommand(String *args, int argCount, bool web_command, String &resp
     {
       printLine("Starting HID wireless jammer...", response, web_command);
       if ( web_command ) server.send(200, "text/html", response + "ok\n");
-      jamHandler(hid_wireless_jam, "HID Jamming", decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_misc_jammer_64 : bitmap_misc_jammer_32), false, false);
+      jamHandler(hid_wireless_jam, "HID Jamming", decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_misc_jammer_64 : bitmap_misc_jammer_32), true, false);
       return true;
     }
     if ( hidSub == "logitech" )
     {
       printLine("Starting Logitech Unifying jammer...", response, web_command);
       if ( web_command ) server.send(200, "text/html", response + "ok\n");
-      jamHandler(logitech_unifying_jam, "Logitech Jamming", decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_misc_jammer_64 : bitmap_misc_jammer_32), false, false);
+      jamHandler(logitech_unifying_jam, "Logitech Jamming", decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_misc_jammer_64 : bitmap_misc_jammer_32), true, false);
       return true;
     }
     if ( hidSub == "ms" || hidSub == "microsoft" )
     {
       printLine("Starting Microsoft wireless HID jammer...", response, web_command);
       if ( web_command ) server.send(200, "text/html", response + "ok\n");
-      jamHandler(ms_wireless_jam, "MS HID Jamming", decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_misc_jammer_64 : bitmap_misc_jammer_32), false, false);
+      jamHandler(ms_wireless_jam, "MS HID Jamming", decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_misc_jammer_64 : bitmap_misc_jammer_32), true, false);
       return true;
     }
     printLine("Unknown HID mode. Type 'jam hid' for list", response, web_command);
@@ -503,28 +538,28 @@ bool handleJamCommand(String *args, int argCount, bool web_command, String &resp
     {
       printLine("Starting full-band RC controller jammer...", response, web_command);
       if ( web_command ) server.send(200, "text/html", response + "ok\n");
-      jamHandler(rc_controller_jam, "RC Jamming", decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_drone_jammer_64 : bitmap_drone_jammer_32), false, false);
+      jamHandler(rc_controller_jam, "RC Jamming", decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_drone_jammer_64 : bitmap_drone_jammer_32), true, false);
       return true;
     }
     if ( rcSub == "flysky" )
     {
       printLine("Starting FlySky AFHDS-2A jammer...", response, web_command);
       if ( web_command ) server.send(200, "text/html", response + "ok\n");
-      jamHandler(flysky_jam, "FlySky Jamming", decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_drone_jammer_64 : bitmap_drone_jammer_32), false, false);
+      jamHandler(flysky_jam, "FlySky Jamming", decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_drone_jammer_64 : bitmap_drone_jammer_32), true, false);
       return true;
     }
     if ( rcSub == "spektrum" )
     {
       printLine("Starting Spektrum DSM2/DSMX jammer...", response, web_command);
       if ( web_command ) server.send(200, "text/html", response + "ok\n");
-      jamHandler(spektrum_jam, "Spektrum Jamming", decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_drone_jammer_64 : bitmap_drone_jammer_32), false, false);
+      jamHandler(spektrum_jam, "Spektrum Jamming", decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_drone_jammer_64 : bitmap_drone_jammer_32), true, false);
       return true;
     }
     if ( rcSub == "frsky" )
     {
       printLine("Starting FrSky jammer...", response, web_command);
       if ( web_command ) server.send(200, "text/html", response + "ok\n");
-      jamHandler(frsky_jam, "FrSky Jamming", decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_drone_jammer_64 : bitmap_drone_jammer_32), false, false);
+      jamHandler(frsky_jam, "FrSky Jamming", decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_drone_jammer_64 : bitmap_drone_jammer_32), true, false);
       return true;
     }
     printLine("Unknown RC mode. Type 'jam rc' for list", response, web_command);
@@ -1238,10 +1273,10 @@ bool handleSetCommand(String *args, int argCount, bool web_command, String &resp
     if ( argCount == 2 )
     {
       printLine("", response, web_command);
-      printLine("  0 - MAX (0 dBm)", response, web_command);
-      printLine("  1 - HIGH (-6 dBm)", response, web_command);
-      printLine("  2 - LOW (-12 dBm)", response, web_command);
-      printLine("  3 - MIN (-18 dBm)", response, web_command);
+      printLine("  0 - MIN  (-18 dBm)", response, web_command);
+      printLine("  1 - LOW  (-12 dBm)", response, web_command);
+      printLine("  2 - HIGH  (-6 dBm)", response, web_command);
+      printLine("  3 - MAX    (0 dBm)  <- use this for range tests", response, web_command);
       printLine("Current: " + String(nrf_pa), response, web_command);
       printLine("Usage: set pa <0-3>", response, web_command);
       printLine("", response, web_command);
