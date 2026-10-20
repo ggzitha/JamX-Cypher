@@ -1,4 +1,5 @@
-﻿#include "attack.h"
+#include "attack.h"
+#include "jam.h"
 
 char emptySSID[32];
 
@@ -143,14 +144,27 @@ void wifi_deauth_all()
   esp_wifi_set_promiscuous_rx_cb(&sniffer);
   esp_wifi_set_promiscuous_filter(&filter);
   updateJoystickButtons();
-  bool SerialStop = true;
+  bool     SerialStop   = true;
+  uint32_t lastAnimTime = millis();
+  int      animStep     = 0;
 
-  while ( (!btnNext.isSingle() && !btnPrevious.isSingle() && !btnOK.isDouble() && !btnOK.isSingle()) && SerialStop )
+  drawActiveJamScreen("WiFi Deauth All", animStep, 2, nullptr, "All Channels (1-14)");
+
+  while ( (!btnNext.isSingle() && !btnPrevious.isSingle() && !btnOK.isDouble() && !btnOK.isSingle() && !btnOK.isHolded()) && SerialStop )
   {
     for ( int channel = 0; channel < 14; channel++ )
     {
       updateJoystickButtons();
       SerialStop = SerialCommands();
+
+      uint32_t now = millis();
+      if ( now - lastAnimTime >= 300 )
+      {
+        lastAnimTime = now;
+        animStep++;
+        drawActiveJamScreen("WiFi Deauth All", animStep, 2, nullptr, "All Channels (1-14)");
+      }
+
       delay(10);
       esp_wifi_set_channel(channel + 1, WIFI_SECOND_CHAN_NONE);
       if ( !SerialStop )
@@ -171,10 +185,14 @@ void wifi_deauth_scan()
   esp_wifi_set_promiscuous_rx_cb(&sniffer);
   esp_wifi_set_promiscuous_filter(&filter);
   updateJoystickButtons();
-  int  scanCounter = 0;
-  bool SerialStop  = true;
+  int      scanCounter  = 0;
+  bool     SerialStop   = true;
+  uint32_t lastAnimTime = millis();
+  int      animStep     = 0;
 
-  while ( (!btnNext.isSingle() && !btnPrevious.isSingle() && !btnOK.isDouble() && !btnOK.isSingle()) && SerialStop )
+  drawActiveJamScreen("WiFi Deauth Scan", animStep, 2, nullptr, "Active Channels Only");
+
+  while ( (!btnNext.isSingle() && !btnPrevious.isSingle() && !btnOK.isDouble() && !btnOK.isSingle() && !btnOK.isHolded()) && SerialStop )
   {
     if ( scanCounter >= 600 )
     {
@@ -188,6 +206,15 @@ void wifi_deauth_scan()
       int wifiChannel = WiFiScanChannels[chIndex];
       updateJoystickButtons();
       SerialStop = SerialCommands();
+
+      uint32_t now = millis();
+      if ( now - lastAnimTime >= 300 )
+      {
+        lastAnimTime = now;
+        animStep++;
+        drawActiveJamScreen("WiFi Deauth Scan", animStep, 2, nullptr, "Active Channels Only");
+      }
+
       delay(10);
       esp_wifi_set_channel(wifiChannel, WIFI_SECOND_CHAN_NONE);
       if ( !SerialStop )
@@ -210,12 +237,25 @@ void wifi_deauth_channel(int channel)
   esp_wifi_set_promiscuous_rx_cb(&sniffer);
   esp_wifi_set_promiscuous_filter(&filter);
   updateJoystickButtons();
-  bool SerialStop = true;
+  bool     SerialStop   = true;
+  uint32_t lastAnimTime = millis();
+  int      animStep     = 0;
 
-  while ( (!btnNext.isSingle() && !btnPrevious.isSingle() && !btnOK.isDouble() && !btnOK.isSingle()) && SerialStop )
+  drawActiveJamScreen("WiFi Deauth Ch", animStep, 2, nullptr, "Target Channel " + String(channel));
+
+  while ( (!btnNext.isSingle() && !btnPrevious.isSingle() && !btnOK.isDouble() && !btnOK.isSingle() && !btnOK.isHolded()) && SerialStop )
   {
     updateJoystickButtons();
     SerialStop = SerialCommands();
+
+    uint32_t now = millis();
+    if ( now - lastAnimTime >= 300 )
+    {
+      lastAnimTime = now;
+      animStep++;
+      drawActiveJamScreen("WiFi Deauth Ch", animStep, 2, nullptr, "Target Channel " + String(channel));
+    }
+
     delay(10);
     if ( !SerialStop )
       break;
@@ -227,9 +267,11 @@ void wifi_deauth_channel(int channel)
 
 void wifi_beacon_spam_random()
 {
-  char buffer[50][33];
-  bool SerialStop = true;
-  int  MacSeed    = esp_random();
+  char     buffer[50][33];
+  bool     SerialStop   = true;
+  int      MacSeed      = esp_random();
+  uint32_t lastAnimTime = millis();
+  int      animStep     = 0;
 
   memset(emptySSID, ' ', sizeof(emptySSID));
   if ( access_point == 0 )
@@ -238,10 +280,20 @@ void wifi_beacon_spam_random()
   updateJoystickButtons();
   digitalWrite(2, HIGH);
 
-  while ( (!btnNext.isSingle() && !btnPrevious.isSingle() && !btnOK.isDouble() && !btnOK.isSingle()) && SerialStop )
+  drawActiveJamScreen("WiFi Beacon Spam", animStep, 2, nullptr, "Random SSIDs");
+
+  while ( (!btnNext.isSingle() && !btnPrevious.isSingle() && !btnOK.isDouble() && !btnOK.isSingle() && !btnOK.isHolded()) && SerialStop )
   {
     updateJoystickButtons();
     SerialStop = SerialCommands();
+
+    uint32_t now = millis();
+    if ( now - lastAnimTime >= 300 )
+    {
+      lastAnimTime = now;
+      animStep++;
+      drawActiveJamScreen("WiFi Beacon Spam", animStep, 2, nullptr, "Random SSIDs");
+    }
 
     randomSeed(esp_random() + millis());
 
@@ -274,9 +326,12 @@ void wifi_beacon_spam_random()
 
 void wifi_beacon_spam_array()
 {
-  uint16_t count      = 0;
-  bool     SerialStop = true;
-  int      MacSeed    = esp_random();
+  uint16_t count        = 0;
+  bool     SerialStop   = true;
+  int      MacSeed      = esp_random();
+  uint32_t lastAnimTime = millis();
+  int      animStep     = 0;
+
   memset(emptySSID, ' ', sizeof(emptySSID));
   for ( int i = 0; i < 100; i++ )
   {
@@ -289,10 +344,22 @@ void wifi_beacon_spam_array()
   WiFi.mode(WIFI_STA);
   updateJoystickButtons();
   digitalWrite(2, HIGH);
-  while ( (!btnNext.isSingle() && !btnPrevious.isSingle() && !btnOK.isDouble() && !btnOK.isSingle()) && SerialStop )
+
+  drawActiveJamScreen("WiFi Beacon Spam", animStep, 2, nullptr, "SSID Wordlist");
+
+  while ( (!btnNext.isSingle() && !btnPrevious.isSingle() && !btnOK.isDouble() && !btnOK.isSingle() && !btnOK.isHolded()) && SerialStop )
   {
     updateJoystickButtons();
     SerialStop = SerialCommands();
+
+    uint32_t now = millis();
+    if ( now - lastAnimTime >= 300 )
+    {
+      lastAnimTime = now;
+      animStep++;
+      drawActiveJamScreen("WiFi Beacon Spam", animStep, 2, nullptr, "SSID Wordlist");
+    }
+
     randomSeed(esp_random() + millis());
     send_beacon(SSIDs_Array, count, MacSeed);
     if ( !SerialStop )

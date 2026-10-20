@@ -51,62 +51,241 @@ void HandleWebCommand()
   CommandsHandler(command, true);
 }
 
-void updateDisplay(int menuNum)
+// ---------------------------------------------------------------------------
+// Unified PSP-style menu framework (shared by main menu and every submenu)
+// ---------------------------------------------------------------------------
+enum {
+  ICON_BT, ICON_DRONE, ICON_WIFI, ICON_BLE, ICON_ZIGBEE, ICON_MISC,
+  ICON_FULL, ICON_USB, ICON_FPV, ICON_HID, ICON_RC, ICON_APPLE,
+  ICON_SETTINGS, ICON_TOOLS, ICON_SCAN, ICON_REBOOT, ICON_RF
+};
+
+static void drawMenuIcon(int x, int y, int id, uint16_t color)
 {
-  static const char *const titles[13] = {
-      "Bluetooth Jammer",    // 0
-      "Drone Jammer",        // 1
-      "WiFi Attacks",        // 2
-      "BLE Jammer",          // 3
-      "Zigbee Jammer",       // 4
-      "Misc (custom range)", // 5
-      "Settings",            // 6
-      "Full 2.4 GHz",        // 7
-      "USB 2.4 GHz",         // 8
-      "FPV / Video",         // 9
-      "HID Jammer",          // 10
-      "RC Jammer",           // 11
-      "Apple BLE Flood"      // 12
-  };
+  switch ( id )
+  {
+  case ICON_WIFI: // 3 rising bars
+    display.fillRect(x + 1, y + 6, 2, 3, color);
+    display.fillRect(x + 5, y + 3, 2, 6, color);
+    display.fillRect(x + 9, y + 0, 2, 9, color);
+    break;
+  case ICON_BT: // circle + centre
+    display.drawCircle(x + 5, y + 5, 4, color);
+    display.drawCircle(x + 5, y + 5, 1, color);
+    break;
+  case ICON_BLE: // arrow
+    display.fillTriangle(x + 1, y + 5, x + 11, y + 1, x + 11, y + 9, color);
+    break;
+  case ICON_ZIGBEE:
+    display.drawLine(x + 1, y + 2, x + 5, y + 7, color);
+    display.drawLine(x + 5, y + 7, x + 9, y + 2, color);
+    break;
+  case ICON_DRONE: // X
+    display.drawLine(x + 1, y + 1, x + 9, y + 9, color);
+    display.drawLine(x + 9, y + 1, x + 1, y + 9, color);
+    break;
+  case ICON_HID: // keyboard dots
+    display.fillCircle(x + 2, y + 3, 1, color);
+    display.fillCircle(x + 5, y + 3, 1, color);
+    display.fillCircle(x + 8, y + 3, 1, color);
+    display.fillRect(x + 3, y + 7, 6, 2, color);
+    break;
+  case ICON_RC: // stick
+    display.drawCircle(x + 4, y + 4, 3, color);
+    display.fillCircle(x + 4, y + 4, 1, color);
+    display.drawLine(x + 4, y + 7, x + 4, y + 9, color);
+    break;
+  case ICON_USB: // plug
+    display.drawRect(x + 2, y + 1, 6, 5, color);
+    display.fillRect(x + 5, y + 5, 2, 4, color);
+    break;
+  case ICON_APPLE:
+    display.fillCircle(x + 5, y + 3, 3, color);
+    display.fillCircle(x + 4, y + 6, 2, color);
+    break;
+  case ICON_SETTINGS: // gear
+    display.drawCircle(x + 5, y + 5, 3, color);
+    display.drawLine(x + 5, y, x + 5, y + 9, color);
+    display.drawLine(x + 1, y + 5, x + 9, y + 5, color);
+    break;
+  case ICON_FULL: // bars with gap
+    display.fillRect(x + 1, y, 2, 9, color);
+    display.fillRect(x + 5, y, 2, 9, color);
+    display.fillRect(x + 9, y, 2, 9, color);
+    display.drawLine(x + 2, y + 4, x + 9, y + 4, BLACK);
+    break;
+  case ICON_FPV:
+    display.drawRect(x + 1, y + 1, 10, 7, color);
+    display.drawLine(x + 6, y + 7, x + 6, y + 9, color);
+    break;
+  case ICON_SCAN:
+    display.drawCircle(x + 3, y + 3, 4, color);
+    display.drawLine(x + 7, y + 7, x + 10, y + 10, color);
+    break;
+  case ICON_REBOOT:
+    display.drawCircle(x + 5, y + 5, 4, color);
+    display.fillRect(x + 4, y, 3, 3, BLACK);
+    break;
+  case ICON_RF: // wave
+    display.drawLine(x + 1, y + 8, x + 4, y + 4, color);
+    display.drawLine(x + 4, y + 4, x + 7, y + 8, color);
+    display.drawLine(x + 7, y + 8, x + 10, y + 4, color);
+    break;
+  default: // ICON_MISC / generic
+    display.drawCircle(x + 4, y + 4, 3, color);
+    display.drawLine(x + 7, y + 7, x + 10, y + 7, color);
+    break;
+  }
+}
 
-  const int maxVisible = (SCREEN_HEIGHT == 64) ? 6 : 3;
-  const int lineHeight = (SCREEN_HEIGHT == 64) ? 10 : 9;
-
-  // Keep the selected item visible, roughly centred in the window.
-  int scroll = menuNum - (maxVisible / 2);
-  if ( scroll < 0 )
-    scroll = 0;
-  if ( scroll + maxVisible > 13 )
-    scroll = 13 - maxVisible;
-
-  display.clearDisplay();
+static void drawMenuFrame(const char *title)
+{
+  display.fillRect(0, 0, SCREEN_WIDTH, 12, BLACK);
+  display.drawFastHLine(0, 12, SCREEN_WIDTH, WHITE);
   display.setTextSize(1);
   display.setTextColor(WHITE, BLACK);
+  display.setCursor(3, 2);
+  display.print(title);
+}
 
-  display.setCursor(0, 0);
-  display.print("Menu");
-  display.setCursor(SCREEN_WIDTH - 30, 0);
-  display.print(String(menuNum + 1));
-  display.print("/13");
-  display.drawFastHLine(0, 9, SCREEN_WIDTH, WHITE);
+static void drawMenuList(const char *const labels[], const int *icons, int count, int current)
+{
+  const int firstY     = 14;
+  const int rowH       = 9;
+  const int maxVisible = (SCREEN_HEIGHT == 64) ? 4 : 2;
+  int       scroll     = current - (maxVisible / 2);
+  if ( scroll < 0 )
+    scroll = 0;
+  if ( scroll + maxVisible > count )
+    scroll = count - maxVisible;
 
+  display.setTextSize(1);
   for ( int i = 0; i < maxVisible; i++ )
   {
-    int idx = scroll + i;
-    if ( idx >= 13 )
+    int  idx = scroll + i;
+    if ( idx >= count )
       break;
-    int y = 11 + i * lineHeight;
-    if ( idx == menuNum )
+    int  y   = firstY + i * rowH;
+    bool sel = (idx == current);
+    if ( sel )
     {
-      display.fillRect(0, y - 1, SCREEN_WIDTH, lineHeight, WHITE);
+      display.fillRect(0, y - 1, SCREEN_WIDTH, rowH, WHITE);
       display.setTextColor(BLACK, WHITE);
     }
     else
-    {
       display.setTextColor(WHITE, BLACK);
+
+    if ( icons != nullptr )
+      drawMenuIcon(3, y, icons[idx], sel ? BLACK : WHITE);
+
+    display.setCursor(17, y);
+    int len = strlen(labels[idx]);
+    if ( sel && len > 17 )
+    {
+      // Marquee horizontal scroll when long label is selected / hovered
+      int maxOffset = len - 17;
+      int step = (millis() / 250) % (maxOffset + 6);
+      int offset = 0;
+      if ( step > 2 )
+      {
+        offset = step - 2;
+        if ( offset > maxOffset ) offset = maxOffset;
+      }
+      char buf[20];
+      strncpy(buf, labels[idx] + offset, 17);
+      buf[17] = '\0';
+      display.print(buf);
     }
-    display.setCursor(3, y);
-    display.print(titles[idx]);
+    else
+    {
+      char buf[20];
+      strncpy(buf, labels[idx], 17);
+      buf[17] = '\0';
+      display.print(buf);
+    }
+  }
+}
+
+static void drawMenuHint()
+{
+  const int y = SCREEN_HEIGHT - 9;
+  display.fillRect(0, y, SCREEN_WIDTH, 9, BLACK);
+  display.drawFastHLine(0, y, SCREEN_WIDTH, WHITE);
+  display.setTextSize(1);
+  display.setTextColor(WHITE, BLACK);
+  display.setCursor(2, y + 1);
+  display.print("OK select   Hold back");
+}
+
+static const char *const MENU_SHORT[14] = {
+    "BT Jammer", "Drone", "WiFi", "BLE", "Zigbee", "Misc",
+    "Settings", "Full 2.4G", "USB 2.4G", "FPV", "HID", "RC",
+    "Apple BLE", "Tools"
+};
+static const char *const MENU_NAME[14] = {
+    "Bluetooth Jammer", "Drone Jammer", "WiFi Attacks", "BLE Jammer",
+    "Zigbee Jammer", "Misc Jammer", "Settings", "Full 2.4 GHz",
+    "USB 2.4 GHz", "FPV / Video", "HID Jammer", "RC Jammer",
+    "Apple BLE Flood", "Tools"
+};
+static const int MENU_ICON[14] = {
+    ICON_BT, ICON_DRONE, ICON_WIFI, ICON_BLE, ICON_ZIGBEE, ICON_MISC,
+    ICON_SETTINGS, ICON_FULL, ICON_USB, ICON_FPV, ICON_HID, ICON_RC,
+    ICON_APPLE, ICON_TOOLS
+};
+
+void updateDisplay(int menuNum)
+{
+  const int ITEM_COUNT = 14;
+
+  display.clearDisplay();
+
+  // 1. Draw central large creative logo (scaled & centered for ALL modules 0..13 so nothing is cropped)
+  drawLargeModuleLogo(menuNum, SCREEN_WIDTH / 2, 32);
+
+  // 2. Title Bar: Overlaid on top center in Bold
+  display.fillRect(0, 0, SCREEN_WIDTH, 11, BLACK);
+  display.setTextSize(1);
+  display.setTextColor(WHITE, BLACK);
+  int w = strlen(MENU_NAME[menuNum]) * 6;
+  int titleX = (SCREEN_WIDTH - w) / 2;
+  if ( titleX < 2 ) titleX = 2;
+  display.setCursor(titleX, 2);
+  display.print(MENU_NAME[menuNum]);
+  display.setCursor(titleX + 1, 2); // 1-pixel horizontal bold overlay
+  display.print(MENU_NAME[menuNum]);
+  display.drawFastHLine(0, 11, SCREEN_WIDTH, WHITE);
+
+  // 3. Bottom Bar: Separator line + < [dots] >
+  const int barY = SCREEN_HEIGHT - 11;
+  display.drawFastHLine(0, barY, SCREEN_WIDTH, WHITE);
+  display.fillRect(0, barY + 1, SCREEN_WIDTH, 10, BLACK);
+
+  // Left arrow '<'
+  display.drawLine(4, barY + 3, 1, barY + 5, WHITE);
+  display.drawLine(1, barY + 5, 4, barY + 7, WHITE);
+  display.drawLine(5, barY + 3, 2, barY + 5, WHITE);
+  display.drawLine(2, barY + 5, 5, barY + 7, WHITE);
+
+  // Right arrow '>'
+  display.drawLine(SCREEN_WIDTH - 5, barY + 3, SCREEN_WIDTH - 2, barY + 5, WHITE);
+  display.drawLine(SCREEN_WIDTH - 2, barY + 5, SCREEN_WIDTH - 5, barY + 7, WHITE);
+  display.drawLine(SCREEN_WIDTH - 6, barY + 3, SCREEN_WIDTH - 3, barY + 5, WHITE);
+  display.drawLine(SCREEN_WIDTH - 3, barY + 5, SCREEN_WIDTH - 6, barY + 7, WHITE);
+
+  // Dotted page indicator (filled = selected, empty dot = unselected)
+  int dotY = barY + 5;
+  for ( int i = 0; i < ITEM_COUNT; i++ )
+  {
+    int cx = 12 + i * 8;
+    if ( i == menuNum )
+    {
+      display.fillCircle(cx, dotY, 2, WHITE); // Filled ●
+    }
+    else
+    {
+      display.drawPixel(cx, dotY, WHITE);     // Unselected dot ○
+    }
   }
 
   display.display();
@@ -277,10 +456,18 @@ void loadSettings()
     Separate_or_together = 0;
   if ( access_point < 0 || access_point > 1 )
     access_point = 0;
-  if ( buttons < 0 || buttons > 2 )
-    buttons = 2;
-
   prefs.getBytes("SSIDs_Array", SSIDs_Array, sizeof(SSIDs_Array));
+
+  // Joystick configuration
+  joy_inverted  = prefs.getInt("joy_inv", 1);
+  joy_hold_ms   = prefs.getInt("joy_hold", 350);
+  joy_repeat_ms = prefs.getInt("joy_rep", 140);
+  joy_deadzone  = prefs.getInt("joy_dead", 800);
+
+  if ( joy_inverted < 0 || joy_inverted > 1 ) joy_inverted = 1;
+  if ( joy_hold_ms < 100 || joy_hold_ms > 2000 ) joy_hold_ms = 350;
+  if ( joy_repeat_ms < 50 || joy_repeat_ms > 1000 ) joy_repeat_ms = 140;
+  if ( joy_deadzone < 200 || joy_deadzone > 1800 ) joy_deadzone = 800;
 
   Serial.printf("[settings] PA=%d delay=%d height=%d sweep=%d AP=%d modules=%d\n",
                 nrf_pa, jam_delay, SCREEN_HEIGHT, Separate_or_together, access_point, nrf24_count);
@@ -664,9 +851,12 @@ void sendHtmlAndExecute(const uint8_t *htmlData, size_t len, void (*action)() = 
 void attackHandler(String htmlResponse, void (*attackFunction)(), const unsigned char *bitmap)
 {
   (void)htmlResponse;
-  display.clearDisplay();
-  display.drawBitmap(0, 0, bitmap, SCREEN_WIDTH, SCREEN_HEIGHT, WHITE);
-  display.display();
+  if ( bitmap != nullptr )
+  {
+    display.clearDisplay();
+    display.drawBitmap(0, 0, bitmap, SCREEN_WIDTH, SCREEN_HEIGHT, WHITE);
+    display.display();
+  }
   sendHtmlAndExecute(html_jam, html_jam_len, attackFunction);
   updateDisplay(menu_number);
 }
@@ -674,9 +864,12 @@ void attackHandler(String htmlResponse, void (*attackFunction)(), const unsigned
 void attackScanHandler(String htmlResponse, void (*attackFunction)(), const unsigned char *bitmap)
 {
   (void)htmlResponse;
-  display.clearDisplay();
-  display.drawBitmap(0, 0, bitmap, SCREEN_WIDTH, SCREEN_HEIGHT, WHITE);
-  display.display();
+  if ( bitmap != nullptr )
+  {
+    display.clearDisplay();
+    display.drawBitmap(0, 0, bitmap, SCREEN_WIDTH, SCREEN_HEIGHT, WHITE);
+    display.display();
+  }
   server.sendHeader("Content-Encoding", "gzip");
   server.send_P(200, "text/html", (const char *)html_jam, html_jam_len);
   delay(500);
@@ -921,84 +1114,325 @@ void handleFileUpload()
 }
 
 // Live nRF24 detection status screen. Runs the hardware scan, shows each
-// physically-present module on the OLED, and exits on btnOK (SW).
+// Live nRF24 detection status screen. Styled as a unified diagnostic dashboard.
 void nrfStatusScreen()
 {
   int  found_ce[30], found_csn[30];
   int  found = detectNRF24Modules(found_ce, found_csn);
 
+  int scrollOffset = 0;
+  const int maxVisible = 4; // Comfortably fits 4 modules on screen without overlapping hint!
+
+  auto draw = [&]() {
+    display.clearDisplay();
+    drawMenuFrame("nRF24 Diagnostics");
+
+    // Diagnostic summary banner
+    display.fillRect(2, 13, SCREEN_WIDTH - 4, 9, WHITE);
+    display.setTextColor(BLACK, WHITE);
+    display.setCursor(4, 14);
+    display.print("Detected: ");
+    display.print(found);
+    display.print("/");
+    display.print(nrf24_count);
+    display.print(" ");
+    if ( found >= nrf24_count && nrf24_count > 0 )
+      display.print("[ALL OK]");
+    else if ( found == 0 )
+      display.print("[NO NRF]");
+    else
+      display.print("[PARTIAL]");
+
+    int totalItems = (found > nrf24_count) ? found : nrf24_count;
+    if ( totalItems == 0 )
+    {
+      display.setTextColor(WHITE, BLACK);
+      display.setCursor(8, 28);
+      display.print("No nRF24 modules detected");
+      display.setCursor(8, 38);
+      display.print("Check SPI wiring & 3.3V");
+    }
+    else
+    {
+      for ( int i = 0; i < maxVisible; i++ )
+      {
+        int idx = scrollOffset + i;
+        if ( idx >= totalItems ) break;
+
+        int y = 24 + i * 8;
+        bool isDetected = false;
+        int ce = 0, csn = 0;
+
+        if ( idx < found )
+        {
+          ce = found_ce[idx];
+          csn = found_csn[idx];
+          isDetected = true;
+        }
+        else if ( idx < nrf24_count )
+        {
+          ce = ce_pins[idx];
+          csn = csn_pins[idx];
+          isDetected = false;
+        }
+
+        display.drawRoundRect(2, y - 1, 124, 8, 2, WHITE);
+        display.setTextColor(WHITE, BLACK);
+        display.setCursor(4, y);
+        display.print("M");
+        display.print(idx);
+        display.print(" CE:");
+        display.print(ce);
+        if ( ce < 10 ) display.print(" ");
+        display.print(" CSN:");
+        display.print(csn);
+        if ( csn < 10 ) display.print(" ");
+
+        if ( isDetected )
+        {
+          display.fillRect(100, y - 1, 25, 8, WHITE);
+          display.setTextColor(BLACK, WHITE);
+          display.setCursor(102, y);
+          display.print(" OK ");
+        }
+        else
+        {
+          display.setTextColor(WHITE, BLACK);
+          display.setCursor(102, y);
+          display.print("MISS");
+        }
+      }
+    }
+
+    // Scroll arrows if more items exist
+    if ( scrollOffset > 0 )
+    {
+      display.setTextColor(WHITE, BLACK);
+      display.setCursor(120, 24);
+      display.print("^");
+    }
+    if ( scrollOffset + maxVisible < totalItems )
+    {
+      display.setTextColor(WHITE, BLACK);
+      display.setCursor(120, 48);
+      display.print("v");
+    }
+
+    drawMenuHint();
+    display.display();
+  };
+
+  draw();
+
   while ( true )
   {
     updateJoystickButtons();
 
-    display.clearDisplay();
-    display.setTextColor(WHITE, BLACK);
-    display.setTextSize(1);
-    display.setCursor(0, 0);
-    display.print("nRF24 Live Scan");
-    display.print(found);
-    display.print(" found / ");
-    display.print(nrf24_count);
-    display.print(" cfg");
-
-    // Show up to 6 modules (fits 128x64).
-    int show = (found < 6) ? found : 6;
-    for ( int i = 0; i < show; i++ )
+    int totalItems = (found > nrf24_count) ? found : nrf24_count;
+    if ( btnNext.isSingle() && scrollOffset + maxVisible < totalItems )
     {
-      int y = 12 + i * 10;
-      display.setCursor(0, y);
-      display.print("M");
-      display.print(i);
-      display.print(" CE=");
-      display.print(found_ce[i]);
-      display.print(" CSN=");
-      display.print(found_csn[i]);
-      display.print(" OK");
+      scrollOffset++;
+      draw();
     }
-
-    if ( found > 6 )
+    if ( btnPrevious.isSingle() && scrollOffset > 0 )
     {
-      display.setCursor(0, 12 + 6 * 10);
-      display.print("+");
-      display.print(found - 6);
-      display.print(" more...");
+      scrollOffset--;
+      draw();
     }
-
-    // Highlight any stored config modules that were NOT detected.
-    for ( int i = 0; i < nrf24_count; i++ )
+    if ( btnOK.isSingle() || btnOK.isHolded() )
     {
-      bool detected = false;
-      for ( int j = 0; j < found; j++ )
-      {
-        if ( ce_pins[i] == found_ce[j] && csn_pins[i] == found_csn[j] )
-        {
-          detected = true;
-          break;
-        }
-      }
-      if ( !detected )
-      {
-        int y = 12 + show * 10;
-        display.setCursor(0, y);
-        display.print("CFG M");
-        display.print(i);
-        display.print(" CE=");
-        display.print(ce_pins[i]);
-        display.print(",CSN=");
-        display.print(csn_pins[i]);
-        display.print(" --");
-        show++;
-        if ( show >= 13 )
-          break;
-      }
-    }
-
-    display.display();
-
-    if ( btnOK.isSingle() )
       break;
+    }
+    delay(1);
+  }
+}
 
-    delay(50);
+void joystickConfigScreen()
+{
+  static const char *const labels[] = {
+      "Invert Axis",
+      "Hold Delay",
+      "Repeat Rate",
+      "Deadzone",
+      "Live Monitor",
+      "< Back"
+  };
+  const int itemCount = 6;
+  int current = 0;
+
+  auto draw = [&]() {
+    display.clearDisplay();
+    drawMenuFrame("Joystick Settings");
+
+    const int firstY = 14;
+    const int rowH = 9;
+    const int maxVisible = (SCREEN_HEIGHT == 64) ? 4 : 2;
+    int scroll = current - (maxVisible / 2);
+    if ( scroll < 0 ) scroll = 0;
+    if ( scroll + maxVisible > itemCount ) scroll = itemCount - maxVisible;
+
+    display.setTextSize(1);
+    for ( int i = 0; i < maxVisible; i++ )
+    {
+      int idx = scroll + i;
+      if ( idx >= itemCount ) break;
+      int y = firstY + i * rowH;
+      bool sel = (idx == current);
+      if ( sel )
+      {
+        display.fillRect(0, y - 1, SCREEN_WIDTH, rowH, WHITE);
+        display.setTextColor(BLACK, WHITE);
+      }
+      else
+        display.setTextColor(WHITE, BLACK);
+
+      display.setCursor(4, y);
+      display.print(labels[idx]);
+
+      display.setCursor(78, y);
+      switch ( idx )
+      {
+      case 0:
+        display.print(joy_inverted ? "[YES]" : "[NO]");
+        break;
+      case 1:
+        display.print(joy_hold_ms);
+        display.print("ms");
+        break;
+      case 2:
+        display.print(joy_repeat_ms);
+        display.print("ms");
+        break;
+      case 3:
+        display.print(joy_deadzone);
+        break;
+      case 4:
+        display.print(">>>");
+        break;
+      case 5:
+        display.print("");
+        break;
+      }
+    }
+    drawMenuHint();
+    display.display();
+  };
+
+  draw();
+
+  while ( true )
+  {
+    updateJoystickButtons();
+
+    if ( btnNext.isSingle() )
+    {
+      current = (current + 1) % itemCount;
+      draw();
+    }
+    if ( btnPrevious.isSingle() )
+    {
+      current = (current - 1 + itemCount) % itemCount;
+      draw();
+    }
+    if ( btnOK.isHolded() )
+    {
+      break;
+    }
+    if ( btnOK.isSingle() )
+    {
+      switch ( current )
+      {
+      case 0: // Invert
+        joy_inverted = (joy_inverted == 1) ? 0 : 1;
+        prefs.putInt("joy_inv", joy_inverted);
+        break;
+      case 1: // Hold Delay
+      {
+        static const int holdSteps[] = {150, 250, 350, 500, 750};
+        int hIdx = 2;
+        for ( int s = 0; s < 5; s++ )
+          if ( holdSteps[s] == joy_hold_ms ) hIdx = s;
+        hIdx = (hIdx + 1) % 5;
+        joy_hold_ms = holdSteps[hIdx];
+        prefs.putInt("joy_hold", joy_hold_ms);
+        break;
+      }
+      case 2: // Repeat Rate
+      {
+        static const int repSteps[] = {80, 100, 140, 200, 300};
+        int rIdx = 2;
+        for ( int s = 0; s < 5; s++ )
+          if ( repSteps[s] == joy_repeat_ms ) rIdx = s;
+        rIdx = (rIdx + 1) % 5;
+        joy_repeat_ms = repSteps[rIdx];
+        prefs.putInt("joy_rep", joy_repeat_ms);
+        break;
+      }
+      case 3: // Deadzone
+      {
+        static const int deadSteps[] = {400, 600, 800, 1000, 1200};
+        int dIdx = 2;
+        for ( int s = 0; s < 5; s++ )
+          if ( deadSteps[s] == joy_deadzone ) dIdx = s;
+        dIdx = (dIdx + 1) % 5;
+        joy_deadzone = deadSteps[dIdx];
+        prefs.putInt("joy_dead", joy_deadzone);
+        break;
+      }
+      case 4: // Live Monitor
+      {
+        while ( true )
+        {
+          updateJoystickButtons();
+          display.clearDisplay();
+          drawMenuFrame("Joystick Live Test");
+
+          int rawX = analogRead(JOY_VRX);
+          int rawY = analogRead(JOY_VRY);
+          int swVal = digitalRead(JOY_SW);
+
+          display.setTextColor(WHITE, BLACK);
+          display.setCursor(4, 16);
+          display.print("VRx: "); display.print(rawX);
+          display.setCursor(4, 26);
+          display.print("VRy: "); display.print(rawY);
+          display.setCursor(4, 36);
+          display.print("SW : "); display.print(swVal == LOW ? "PRESSED" : "UP");
+
+          // Crosshair visual
+          int cx = 100, cy = 30;
+          display.drawCircle(cx, cy, 14, WHITE);
+          display.drawFastHLine(cx - 16, cy, 32, WHITE);
+          display.drawFastVLine(cx, cy - 16, 32, WHITE);
+          int dotX = map(rawX, 0, 4095, cx - 11, cx + 11);
+          int dotY = map(rawY, 0, 4095, cy - 11, cy + 11);
+          display.fillCircle(dotX, dotY, 2, WHITE);
+
+          display.setCursor(4, 46);
+          display.print("Act: ");
+          if ( btnNext.state() ) display.print("NEXT >>");
+          else if ( btnPrevious.state() ) display.print("<< PREV");
+          else display.print("CENTER");
+
+          display.drawFastHLine(0, 55, SCREEN_WIDTH, WHITE);
+          display.setCursor(4, 57);
+          display.print("Click SW to exit");
+          display.display();
+
+          if ( btnOK.isSingle() || btnOK.isHolded() )
+          {
+            break;
+          }
+          delay(20);
+        }
+        break;
+      }
+      case 5: // Back
+        return;
+      }
+      draw();
+    }
+    delay(1);
   }
 }
 
@@ -1007,38 +1441,35 @@ void settings()
   int  current_item  = 0;
   int  scroll_offset = 0;
   bool in_edit_mode  = false;
+  const int total_items = 15;
+  const int maxVisible = (SCREEN_HEIGHT == 64) ? 4 : 2;
+  const int rowH = 9;
+  const int firstY = 14;
 
   auto draw_settings = [&]() {
-    int total_items = (buttons == 0) ? 14 : 13;
     if ( current_item >= total_items )
       current_item = total_items - 1;
 
     display.clearDisplay();
-
-    int max_visible = (SCREEN_HEIGHT == 64) ? 6 : 3;
-    int line_height = 10;
-    int start_y     = 1;
+    drawMenuFrame("Settings");
 
     if ( current_item < scroll_offset )
-    {
       scroll_offset = current_item;
-    }
-    else if ( current_item >= scroll_offset + max_visible )
-    {
-      scroll_offset = current_item - max_visible + 1;
-    }
+    else if ( current_item >= scroll_offset + maxVisible )
+      scroll_offset = current_item - maxVisible + 1;
 
-    for ( int i = 0; i < max_visible; i++ )
+    for ( int i = 0; i < maxVisible; i++ )
     {
       int item_idx = scroll_offset + i;
       if ( item_idx >= total_items )
         break;
 
-      int y = start_y + i * line_height;
+      int y = firstY + i * rowH;
+      bool sel = (item_idx == current_item);
 
-      if ( item_idx == current_item )
+      if ( sel )
       {
-        display.fillRect(0, y - 1, 122, line_height - 1, WHITE);
+        display.fillRect(0, y - 1, SCREEN_WIDTH, rowH, WHITE);
         display.setTextColor(BLACK, WHITE);
       }
       else
@@ -1048,83 +1479,79 @@ void settings()
 
       display.setCursor(4, y);
 
-      switch ( item_idx )
-      {
-      case 0:
-        display.print("Logo: ");
-        display.print(logo == 0 ? "Show" : "Hide");
-        break;
-      case 1:
-        display.print("Display: ");
-        display.print(display_setting == 0 ? "On" : "Off");
-        break;
-      case 2:
-        display.print("Height: ");
-        display.print(SCREEN_HEIGHT);
-        break;
-      case 3:
-        display.print("Buttons: ");
-        display.print(buttons == 0 ? "1 Btn" : (buttons == 1 ? "2 Btn" : "3 Btn"));
-        break;
-      case 4:
-        display.print("Sweep: ");
-        display.print(Separate_or_together == 0 ? "Sep" : "Together");
-        break;
-      case 5:
-        display.print("PA Level: ");
-        display.print(nrf_pa == 0 ? "Lowest" : (nrf_pa == 1 ? "Low" : (nrf_pa == 2 ? "High" : "Ultra")));
-        break;
-      case 6:
-        display.print("BT Mode: ");
-        display.print(bluetooth_jam_method == 0 ? "21ch" : (bluetooth_jam_method == 1 ? "80ch rand" : "80ch brute"));
-        break;
-      case 7:
-        display.print("Drone: ");
-        display.print(drone_jam_method == 0 ? "Random" : "Brute");
-        break;
-      case 8:
-        display.print("Misc: ");
-        display.print(misc_jam_method == 0 ? "CW" : (misc_jam_method == 1 ? "Packet" : (misc_jam_method == 2 ? "Full 2.4G" : (misc_jam_method == 3 ? "USB 2.4G" : "FPV/Video"))));
-        break;
-      case 9:
-        display.print("AP Mode: ");
-        display.print(access_point == 0 ? "On" : "Off");
-        break;
-      case 10:
-        display.print("Baudrate: ");
-        display.print(baudrate);
-        break;
-      case 11:
-        display.print("Jam Delay: ");
-        if ( in_edit_mode && current_item == 11 )
+      auto printVal = [&](const String &label, const String &val, int item_idx) {
+        display.print(label);
+        if ( in_edit_mode && current_item == item_idx )
         {
-          display.print("<");
-          display.print(jam_delay);
-          display.print("ms>");
+          display.print("< ");
+          display.print(val);
+          display.print(" >");
         }
         else
         {
-          display.print(jam_delay);
-          display.print("ms");
+          display.print(val);
         }
+      };
+
+      switch ( item_idx )
+      {
+      case 0:
+        printVal("Logo: ", logo == 0 ? "Show" : "Hide", 0);
+        break;
+      case 1:
+        printVal("Display: ", display_setting == 0 ? "On" : "Off", 1);
+        break;
+      case 2:
+        printVal("Height: ", String(SCREEN_HEIGHT), 2);
+        break;
+      case 3:
+        printVal("Buttons: ", buttons == 0 ? "1 Btn" : (buttons == 1 ? "2 Btn" : "3-way Joy"), 3);
+        break;
+      case 4:
+        printVal("Sweep: ", Separate_or_together == 0 ? "Separate" : "Together", 4);
+        break;
+      case 5:
+        printVal("PA Level: ", nrf_pa == 0 ? "Lowest" : (nrf_pa == 1 ? "Low" : (nrf_pa == 2 ? "High" : "Ultra")), 5);
+        break;
+      case 6:
+        printVal("BT Mode: ", bluetooth_jam_method == 0 ? "21ch" : (bluetooth_jam_method == 1 ? "80ch rand" : "80ch brute"), 6);
+        break;
+      case 7:
+        printVal("Drone: ", drone_jam_method == 0 ? "Random" : "Brute", 7);
+        break;
+      case 8:
+        printVal("Misc: ", misc_jam_method == 0 ? "CW" : (misc_jam_method == 1 ? "Packet" : (misc_jam_method == 2 ? "Full 2.4G" : (misc_jam_method == 3 ? "USB" : "FPV"))), 8);
+        break;
+      case 9:
+        printVal("AP Mode: ", access_point == 0 ? "On" : "Off", 9);
+        break;
+      case 10:
+        printVal("Baudrate: ", String(baudrate), 10);
+        break;
+      case 11:
+        printVal("Jam Delay: ", String(jam_delay) + "ms", 11);
         break;
       case 12:
         display.print("nRF24: ");
         display.print(nrf24_count);
-        display.print(" (scan)");
+        display.print(" (diag)");
         break;
       case 13:
-        display.print(" [ Save ]");
+        display.print("Joystick: Config >");
+        break;
+      case 14:
+        display.print(" [ Save & Back ]");
         break;
       }
     }
 
-    display.drawFastVLine(125 + 1, 0, SCREEN_HEIGHT, WHITE);
-    int thumb_h = (SCREEN_HEIGHT * max_visible) / total_items;
-    if ( thumb_h < 4 )
-      thumb_h = 4;
-    int thumb_y = map(current_item, 0, total_items - 1, 0, SCREEN_HEIGHT - thumb_h);
-    display.fillRect(125, thumb_y, 3, thumb_h, WHITE);
+    display.setTextSize(1);
+    display.setTextColor(WHITE, BLACK);
+    display.setCursor(4, 55);
+    if ( in_edit_mode )
+      display.print("< > Choose | OK: Apply");
+    else
+      display.print("< > Move | OK: Edit");
 
     display.display();
   };
@@ -1133,20 +1560,16 @@ void settings()
     switch ( item_idx )
     {
     case 0:
-      logo = (logo + 1) % 2;
+      logo = (logo + delta + 2) % 2;
       prefs.putInt("logo_configs", logo);
       break;
     case 1:
-      display_setting = (display_setting + 1) % 2;
+      display_setting = (display_setting + delta + 2) % 2;
       prefs.putInt("display_configs", display_setting);
       if ( display_setting )
-      {
         display.ssd1306_command(SSD1306_DISPLAYOFF);
-      }
       else
-      {
         display.ssd1306_command(SSD1306_DISPLAYON);
-      }
       break;
     case 2:
       SCREEN_HEIGHT = (SCREEN_HEIGHT == 64) ? 32 : 64;
@@ -1167,31 +1590,31 @@ void settings()
       }
       break;
     case 3:
-      buttons = (buttons + 1) % 3;
+      buttons = (buttons + delta + 3) % 3;
       prefs.putInt("buttons_configs", buttons);
       break;
     case 4:
-      Separate_or_together = (Separate_or_together + 1) % 2;
+      Separate_or_together = (Separate_or_together + delta + 2) % 2;
       prefs.putInt("SorT_configs", Separate_or_together);
       break;
     case 5:
-      nrf_pa = (nrf_pa + 1) % 4;
+      nrf_pa = (nrf_pa + delta + 4) % 4;
       prefs.putInt("PA_configs", nrf_pa);
       break;
     case 6:
-      bluetooth_jam_method = (bluetooth_jam_method + 1) % 3;
+      bluetooth_jam_method = (bluetooth_jam_method + delta + 3) % 3;
       prefs.putInt("bt_configs", bluetooth_jam_method);
       break;
     case 7:
-      drone_jam_method = (drone_jam_method + 1) % 2;
+      drone_jam_method = (drone_jam_method + delta + 2) % 2;
       prefs.putInt("drone_configs", drone_jam_method);
       break;
     case 8:
-      misc_jam_method = (misc_jam_method + 1) % 5;
+      misc_jam_method = (misc_jam_method + delta + 5) % 5;
       prefs.putInt("misc_configs", misc_jam_method);
       break;
     case 9:
-      access_point = (access_point + 1) % 2;
+      access_point = (access_point + delta + 2) % 2;
       prefs.putInt("AP_configs", access_point);
       break;
     case 10: {
@@ -1223,6 +1646,11 @@ void settings()
     case 12:
       nrfStatusScreen();
       break;
+    case 13:
+      joystickConfigScreen();
+      break;
+    case 14:
+      break;
     }
   };
 
@@ -1230,340 +1658,282 @@ void settings()
 
   while ( true )
   {
-    int total_items = (buttons == 0) ? 14 : 13;
+    updateJoystickButtons();
 
-updateJoystickButtons();
-
-    if ( buttons == 0 )
+    if ( in_edit_mode )
     {
-      if ( btnOK.isSingle() )
+      if ( btnNext.isSingle() || btnNext.isHold() )
       {
+        if ( btnNext.isHold() )
+          delay(100);
+        apply_and_save_item(current_item, 1);
+        draw_settings();
+      }
+      else if ( btnPrevious.isSingle() || btnPrevious.isHold() )
+      {
+        if ( btnPrevious.isHold() )
+          delay(100);
+        apply_and_save_item(current_item, -1);
+        draw_settings();
+      }
+      else if ( btnOK.isSingle() || btnOK.isHolded() )
+      {
+        in_edit_mode = false;
+        draw_settings();
+      }
+    }
+    else
+    {
+      if ( btnNext.isSingle() || btnNext.isHold() )
+      {
+        if ( btnNext.isHold() )
+          delay(100);
         current_item = (current_item + 1) % total_items;
         draw_settings();
       }
-      else if ( btnOK.isHolded() )
+      else if ( btnPrevious.isSingle() || btnPrevious.isHold() )
       {
-        if ( current_item == 13 )
+        if ( btnPrevious.isHold() )
+          delay(100);
+        current_item = (current_item - 1 + total_items) % total_items;
+        draw_settings();
+      }
+      else if ( btnOK.isSingle() )
+      {
+        if ( current_item == 14 )
         {
           break;
         }
-        else if ( current_item == 11 )
+        else if ( current_item == 12 )
         {
+          nrfStatusScreen();
+          draw_settings();
+        }
+        else if ( current_item == 13 )
+        {
+          joystickConfigScreen();
+          draw_settings();
         }
         else
         {
-          apply_and_save_item(current_item, 1);
+          in_edit_mode = true;
           draw_settings();
         }
+      }
+      else if ( btnOK.isHolded() )
+      {
+        break;
       }
     }
-
-    else if ( buttons == 1 )
-    {
-      if ( in_edit_mode )
-      {
-        if ( btnNext.isSingle() || btnNext.isHold() )
-        {
-          if ( btnNext.isHold() )
-            delay(100);
-          apply_and_save_item(11, 1);
-          draw_settings();
-        }
-        else if ( btnOK.isSingle() || btnOK.isHolded() )
-        {
-          in_edit_mode = false;
-          draw_settings();
-        }
-      }
-      else
-      {
-        if ( btnNext.isSingle() || btnNext.isHold() )
-        {
-          if ( btnNext.isHold() )
-            delay(100);
-          current_item = (current_item + 1) % total_items;
-          draw_settings();
-        }
-        else if ( btnOK.isSingle() )
-        {
-          if ( current_item == 11 )
-          {
-            in_edit_mode = true;
-            draw_settings();
-          }
-          else
-          {
-            apply_and_save_item(current_item, 1);
-            draw_settings();
-          }
-        }
-        else if ( btnOK.isHolded() )
-        {
-          break;
-        }
-      }
-    }
-
-    else if ( buttons == 2 )
-    {
-      if ( in_edit_mode )
-      {
-        if ( btnNext.isSingle() || btnNext.isHold() )
-        {
-          if ( btnNext.isHold() )
-            delay(100);
-          apply_and_save_item(11, 1);
-          draw_settings();
-        }
-        else if ( btnPrevious.isSingle() || btnPrevious.isHold() )
-        {
-          if ( btnPrevious.isHold() )
-            delay(100);
-          apply_and_save_item(11, -1);
-          draw_settings();
-        }
-        else if ( btnOK.isSingle() || btnOK.isHolded() )
-        {
-          in_edit_mode = false;
-          draw_settings();
-        }
-      }
-      else
-      {
-        if ( btnNext.isSingle() || btnNext.isHold() )
-        {
-          if ( btnNext.isHold() )
-            delay(100);
-          current_item = (current_item + 1) % total_items;
-          draw_settings();
-        }
-        else if ( btnPrevious.isSingle() || btnPrevious.isHold() )
-        {
-          if ( btnPrevious.isHold() )
-            delay(100);
-          current_item = (current_item - 1 + total_items) % total_items;
-          draw_settings();
-        }
-        else if ( btnOK.isSingle() )
-        {
-          if ( current_item == 11 )
-          {
-            in_edit_mode = true;
-            draw_settings();
-          }
-          else
-          {
-            apply_and_save_item(current_item, 1);
-            draw_settings();
-          }
-        }
-        else if ( btnOK.isHolded() )
-        {
-          break;
-        }
-      }
-    }
+    delay(1);
   }
 
   display.setTextColor(WHITE, BLACK);
   updateDisplay(menu_number);
 }
 
-void misc()
+// ---------------------------------------------------------------------------
+// Misc Jammer (Frequency Sweep) Screen & Submenu — Unified Layout
+// ---------------------------------------------------------------------------
+void misc_custom_sweep()
 {
-  int  flag         = 0;
-  auto display_info = [&](String info) {
-    display.clearDisplay();
-    display.setCursor(0, 0);
-    display.println("Start");
-    display.setCursor(96, 0);
-    display.println("Stop");
-    display.setCursor(52, 0);
-    display.println("Width");
-    display.setCursor(8, 10);
-    display.println(String(channel1));
-    display.setCursor(60, 10);
-    display.println(String(channel2 - channel1));
-    display.setCursor(100, 10);
-    display.println(String(channel2));
-    display.setCursor(0, 20);
-    display.println(info);
-    display.display();
-  };
-
-  display_info("");
-
-  auto incrementChannel = [&](int &channel) {
-    channel++;
-    if ( channel > 125 )
-    {
-      channel = 0;
-    }
-  };
-  auto reduceChannel = [&](int &channel) {
-    channel--;
-    if ( channel < 0 )
-    {
-      channel = 125;
-    }
-  };
-
-  while ( true )
-  {
-updateJoystickButtons();
-    if ( buttons == 0 )
-    {
-      if ( btnOK.isSingle() || btnOK.isHold() )
-      {
-        if ( btnOK.isHold() )
-        {
-          delay(100);
-        }
-        incrementChannel(flag == 0 ? channel1 : channel2);
-        display_info("");
-      }
-      else if ( btnOK.isDouble() )
-      {
-        if ( flag == 0 )
-        {
-          flag = 1;
-        }
-        else
-        {
-          if ( channel1 > channel2 )
-          {
-            display_info("Error: Second < First");
-            flag = 0;
-          }
-          else
-          {
-            display_info("Jamming Started");
-            jamHandler(misc_jam, "Jamming from " + String(channel1) + " to " + String(channel2), nullptr, false, false, true, false, channel1, channel2);
-            break;
-          }
-        }
-      }
-    }
-    if ( buttons == 1 )
-    {
-      if ( btnNext.isSingle() || btnNext.isHold() )
-      {
-        if ( btnNext.isHold() )
-        {
-          delay(100);
-        }
-        incrementChannel(flag == 0 ? channel1 : channel2);
-        display_info("");
-      }
-      else if ( btnOK.isSingle() )
-      {
-        if ( flag == 0 )
-        {
-          flag = 1;
-        }
-        else
-        {
-          if ( channel1 > channel2 )
-          {
-            display_info("Error: Second < First");
-            flag = 0;
-          }
-          else
-          {
-            display_info("Jamming Started");
-            jamHandler(misc_jam, "Jamming from " + String(channel1) + " to " + String(channel2), decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_misc_jammer_64 : bitmap_misc_jammer_32), false, false, true, false, channel1, channel2);
-            break;
-          }
-        }
-      }
-    }
-    if ( buttons == 2 )
-    {
-      if ( btnNext.isSingle() || btnNext.isHold() )
-      {
-        if ( btnNext.isHold() )
-        {
-          delay(100);
-        }
-        incrementChannel(flag == 0 ? channel1 : channel2);
-        display_info("");
-      }
-      if ( btnPrevious.isSingle() || btnPrevious.isHold() )
-      {
-        if ( btnPrevious.isHold() )
-        {
-          delay(100);
-        }
-        reduceChannel(flag == 0 ? channel1 : channel2);
-        display_info("");
-      }
-      else if ( btnOK.isSingle() )
-      {
-        if ( flag == 0 )
-        {
-          flag = 1;
-        }
-        else
-        {
-          if ( channel1 > channel2 )
-          {
-            display_info("Error: Second < First");
-            flag = 0;
-          }
-          else
-          {
-            display_info("Jamming Started");
-            jamHandler(misc_jam, "Jamming from " + String(channel1) + " to " + String(channel2), decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_misc_jammer_64 : bitmap_misc_jammer_32), false, false, true, false, channel1, channel2);
-            break;
-          }
-        }
-      }
-    }
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Peripheral jammer sub-menu (HID / RC)
-// ---------------------------------------------------------------------------
-// Same joystick gestures as the rest of the UI:
-//   Next / Previous  -> move the highlight
-//   OK single click  -> start the highlighted jam (OK again stops it)
-//   OK long press    -> back to the main menu
-// ---------------------------------------------------------------------------
-static void runJamMenu(const char *title, const char *const *labels, void (*const *actions)(), int itemCount)
-{
-  int current = 0;
+  int  selectedField = 0; // 0 = Start Ch, 1 = Stop Ch, 2 = Start Jamming
+  bool editMode      = false;
 
   auto draw = [&]() {
     display.clearDisplay();
+    drawMenuFrame("Custom Sweep");
+
+    // Start Channel Card
+    int y0 = 14;
+    if ( selectedField == 0 )
+    {
+      display.fillRect(2, y0, SCREEN_WIDTH - 4, 10, WHITE);
+      display.setTextColor(BLACK, WHITE);
+    }
+    else
+    {
+      display.drawRoundRect(2, y0, SCREEN_WIDTH - 4, 10, 2, WHITE);
+      display.setTextColor(WHITE, BLACK);
+    }
+    display.setCursor(6, y0 + 1);
+    display.print("Start: ");
+    if ( editMode && selectedField == 0 ) display.print("< ");
+    display.print("Ch ");
+    if ( channel1 < 10 ) display.print(" ");
+    display.print(channel1);
+    display.print(" (");
+    display.print(2400 + channel1);
+    display.print("M)");
+    if ( editMode && selectedField == 0 ) display.print(" >");
+
+    // Stop Channel Card
+    int y1 = 26;
+    if ( selectedField == 1 )
+    {
+      display.fillRect(2, y1, SCREEN_WIDTH - 4, 10, WHITE);
+      display.setTextColor(BLACK, WHITE);
+    }
+    else
+    {
+      display.drawRoundRect(2, y1, SCREEN_WIDTH - 4, 10, 2, WHITE);
+      display.setTextColor(WHITE, BLACK);
+    }
+    display.setCursor(6, y1 + 1);
+    display.print("Stop : ");
+    if ( editMode && selectedField == 1 ) display.print("< ");
+    display.print("Ch ");
+    if ( channel2 < 10 ) display.print(" ");
+    display.print(channel2);
+    display.print(" (");
+    display.print(2400 + channel2);
+    display.print("M)");
+    if ( editMode && selectedField == 1 ) display.print(" >");
+
+    // Bandwidth Span line
+    display.setTextColor(WHITE, BLACK);
+    display.setCursor(6, 38);
+    display.print("Span : ");
+    int span = channel2 - channel1;
+    if ( span >= 0 )
+    {
+      display.print(span + 1);
+      display.print(" MHz (");
+      display.print(span + 1);
+      display.print(" chs)");
+    }
+    else
+    {
+      display.print("ERR: Stop < Start");
+    }
+
+    // Action button
+    int y2 = 47;
+    if ( selectedField == 2 )
+    {
+      display.fillRect(2, y2, SCREEN_WIDTH - 4, 10, WHITE);
+      display.setTextColor(BLACK, WHITE);
+    }
+    else
+    {
+      display.drawRoundRect(2, y2, SCREEN_WIDTH - 4, 10, 2, WHITE);
+      display.setTextColor(WHITE, BLACK);
+    }
+    display.setCursor(12, y2 + 1);
+    display.print("[ START SWEEP JAM ]");
+
     display.setTextSize(1);
     display.setTextColor(WHITE, BLACK);
-    display.setCursor(0, 0);
-    display.print(title);
-    display.drawFastHLine(0, 9, SCREEN_WIDTH, WHITE);
+    display.setCursor(4, 57);
+    if ( editMode )
+      display.print("< > Value | OK: Apply");
+    else
+      display.print("< > Move | OK: Select");
 
-    for ( int i = 0; i < itemCount; i++ )
-    {
-      int y = 13 + i * 10;
-      if ( i == current )
-      {
-        display.fillRect(0, y - 1, SCREEN_WIDTH, 10, WHITE);
-        display.setTextColor(BLACK, WHITE);
-      }
-      else
-      {
-        display.setTextColor(WHITE, BLACK);
-      }
-      display.setCursor(3, y);
-      display.print(labels[i]);
-    }
+    display.display();
+  };
 
-    display.setTextColor(WHITE, BLACK);
-    if ( SCREEN_HEIGHT == 64 )
+  draw();
+
+  while ( true )
+  {
+    updateJoystickButtons();
+
+    if ( editMode )
     {
-      display.setCursor(0, SCREEN_HEIGHT - 8);
-      display.print("Hold OK = back");
+      int &targetCh = (selectedField == 0) ? channel1 : channel2;
+      if ( btnNext.isSingle() || btnNext.isHold() )
+      {
+        targetCh++;
+        if ( targetCh > 125 ) targetCh = 0;
+        draw();
+        if ( btnNext.isHold() ) delay(30);
+      }
+      if ( btnPrevious.isSingle() || btnPrevious.isHold() )
+      {
+        targetCh--;
+        if ( targetCh < 0 ) targetCh = 125;
+        draw();
+        if ( btnPrevious.isHold() ) delay(30);
+      }
+      if ( btnOK.isSingle() || btnOK.isHolded() )
+      {
+        editMode = false;
+        draw();
+      }
     }
+    else
+    {
+      if ( btnNext.isSingle() )
+      {
+        selectedField = (selectedField + 1) % 3;
+        draw();
+      }
+      if ( btnPrevious.isSingle() )
+      {
+        selectedField = (selectedField - 1 + 3) % 3;
+        draw();
+      }
+      if ( btnOK.isHolded() )
+      {
+        return;
+      }
+      if ( btnOK.isSingle() )
+      {
+        if ( selectedField == 0 || selectedField == 1 )
+        {
+          editMode = true;
+          draw();
+        }
+        else if ( selectedField == 2 )
+        {
+          if ( channel1 > channel2 )
+          {
+            display.clearDisplay();
+            drawMenuFrame("Custom Sweep");
+            display.setTextColor(WHITE, BLACK);
+            display.setCursor(10, 26);
+            display.print("ERROR: Stop < Start!");
+            display.setCursor(10, 38);
+            display.print("Please fix range");
+            display.display();
+            delay(1500);
+            draw();
+          }
+          else
+          {
+            jamHandler(misc_jam, "Misc Sweep Jam", nullptr, false, false, true, false, channel1, channel2);
+            draw();
+          }
+        }
+      }
+    }
+    delay(1);
+  }
+}
+
+void misc()
+{
+  static const char *labels[] = {
+      "Custom Sweep Range",
+      "Full Band (Ch 0-125)",
+      "ISM Band (Ch 1-84)",
+      "WiFi 2.4G (Ch 1-14)",
+      "Mode: CW Carrier"
+  };
+  static const int icons[] = {
+      ICON_SETTINGS, ICON_RF, ICON_RF, ICON_WIFI, ICON_MISC
+  };
+  const int itemCount = 5;
+  int       current = 0;
+  uint32_t  lastScrollTime = 0;
+
+  auto draw = [&]() {
+    display.clearDisplay();
+    drawMenuFrame("Misc Jammer");
+    labels[4] = (misc_jam_method == 0) ? "Mode: CW Carrier" : "Mode: Packet Noise";
+    drawMenuList(labels, icons, itemCount, current);
+    drawMenuHint();
     display.display();
   };
 
@@ -1583,13 +1953,83 @@ static void runJamMenu(const char *title, const char *const *labels, void (*cons
       current = (current - 1 + itemCount) % itemCount;
       draw();
     }
+    if ( btnOK.isHolded() )
+    {
+      updateDisplay(menu_number);
+      return;
+    }
+
+    uint32_t now = millis();
+    if ( now - lastScrollTime >= 250 )
+    {
+      lastScrollTime = now;
+      draw();
+    }
+
     if ( btnOK.isSingle() )
     {
-      // CW = true is essential: without a constant carrier these jammers only
-      // fire isolated packets and produce no usable interference.
-      jamHandler(actions[current], String(title),
-                 decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_misc_jammer_64 : bitmap_misc_jammer_32),
-                 true, false);
+      switch ( current )
+      {
+      case 0:
+        misc_custom_sweep();
+        break;
+      case 1:
+        jamHandler(misc_jam, "Full 2.4G Sweep", nullptr, false, false, true, false, 0, 125);
+        break;
+      case 2:
+        jamHandler(misc_jam, "ISM Band Sweep", nullptr, false, false, true, false, 1, 84);
+        break;
+      case 3:
+        jamHandler(misc_jam, "WiFi Band Sweep", nullptr, false, false, true, false, 1, 14);
+        break;
+      case 4:
+        misc_jam_method = (misc_jam_method == 0) ? 1 : 0;
+        prefs.putInt("misc_configs", misc_jam_method);
+        draw();
+        break;
+      }
+      draw();
+    }
+    delay(1);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Peripheral jammer sub-menu (HID / RC)
+// ---------------------------------------------------------------------------
+// Same joystick gestures as the rest of the UI:
+//   Next / Previous  -> move the highlight
+//   OK single click  -> start the highlighted jam (OK again stops it)
+//   OK long press    -> back to the main menu
+// ---------------------------------------------------------------------------
+static void runJamMenu(const char *title, const char *const *labels, const int *icons, void (*const *actions)(), int itemCount)
+{
+  int current = 0;
+
+  auto draw = [&]() {
+    display.clearDisplay();
+    drawMenuFrame(title);
+    drawMenuList(labels, icons, itemCount, current);
+    drawMenuHint();
+    display.display();
+  };
+
+  draw();
+
+  uint32_t lastScrollTime = 0;
+
+  while ( true )
+  {
+    updateJoystickButtons();
+
+    if ( btnNext.isSingle() )
+    {
+      current = (current + 1) % itemCount;
+      draw();
+    }
+    if ( btnPrevious.isSingle() )
+    {
+      current = (current - 1 + itemCount) % itemCount;
       draw();
     }
     if ( btnOK.isHolded() )
@@ -1597,673 +2037,686 @@ static void runJamMenu(const char *title, const char *const *labels, void (*cons
       updateDisplay(menu_number);
       return;
     }
+
+    uint32_t now = millis();
+    if ( now - lastScrollTime >= 250 )
+    {
+      lastScrollTime = now;
+      draw();
+    }
+
+    if ( btnOK.isSingle() )
+    {
+      // CW = true is essential: without a constant carrier these jammers only
+      // fire isolated packets and produce no usable interference.
+      jamHandler(actions[current], String(title) + " - " + String(labels[current]), nullptr, true, false);
+      draw();
+    }
     delay(1);
   }
 }
 
 void hid_select()
 {
-  static const char *const labels[] = {"All (ch 2-72)", "Logitech Unify", "Microsoft HID"};
-  static void (*const actions[])()  = {hid_wireless_jam, logitech_unifying_jam, ms_wireless_jam};
-  runJamMenu("HID Jammer", labels, actions, 3);
+  static const char *const labels[]  = {"All (ch 2-72)", "Logitech Unify", "Microsoft HID"};
+  static const int         icons[]   = {ICON_HID, ICON_MISC, ICON_USB};
+  static void (*const actions[])()   = {hid_wireless_jam, logitech_unifying_jam, ms_wireless_jam};
+  runJamMenu("HID Jammer", labels, icons, actions, 3);
 }
 
 void rc_select()
 {
-  static const char *const labels[] = {"All (ch 0-125)", "FlySky AFHDS", "Spektrum DSM", "FrSky D8/D16"};
-  static void (*const actions[])()  = {rc_controller_jam, flysky_jam, spektrum_jam, frsky_jam};
-  runJamMenu("RC Jammer", labels, actions, 4);
+  static const char *const labels[]  = {"All (ch 0-125)", "FlySky AFHDS", "Spektrum DSM", "FrSky D8/D16"};
+  static const int         icons[]   = {ICON_RC, ICON_DRONE, ICON_RC, ICON_RC};
+  static void (*const actions[])()   = {rc_controller_jam, flysky_jam, spektrum_jam, frsky_jam};
+  runJamMenu("RC Jammer", labels, icons, actions, 4);
+}
+
+// ---------------------------------------------------------------------------
+// Tools sub-menu — diagnostics reachable from the joystick so the OLED covers
+// the same functions the serial/web UI have (self-test, module scan/save, logs).
+// ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Tools sub-menu & styled diagnostic sub-screens
+// ---------------------------------------------------------------------------
+static void toolsRfTestScreen()
+{
+  display.clearDisplay();
+  drawMenuFrame("RF Self-Test");
+  display.setTextColor(WHITE, BLACK);
+  display.setCursor(8, 28);
+  display.print("Checking Radios...");
+  display.display();
+
+  int det = 0, tot = 0;
+  bool ok = rfTest(&det, &tot);
+
+  auto draw = [&]() {
+    display.clearDisplay();
+    drawMenuFrame("RF Self-Test");
+
+    display.fillRect(2, 13, SCREEN_WIDTH - 4, 9, WHITE);
+    display.setTextColor(BLACK, WHITE);
+    display.setCursor(6, 14);
+    display.print("Status: ");
+    display.print(det);
+    display.print("/");
+    display.print(tot);
+    display.print(" ");
+    display.print(ok ? "[PASS]" : "[FAIL]");
+
+    display.drawRoundRect(2, 24, SCREEN_WIDTH - 4, 29, 2, WHITE);
+    display.setTextColor(WHITE, BLACK);
+    display.setCursor(6, 27);
+    display.print("Signal : 2435 MHz CW");
+    display.setCursor(6, 35);
+    display.print("Radios : ");
+    display.print(det);
+    display.print(" Active");
+    display.setCursor(6, 44);
+    display.print(ok ? "Health : Hardware OK" : "Health : Check Module");
+
+    drawMenuHint();
+    display.display();
+  };
+
+  draw();
+
+  while ( true )
+  {
+    updateJoystickButtons();
+    if ( btnOK.isSingle() || btnOK.isHolded() )
+      break;
+    delay(1);
+  }
+}
+
+static void toolsScanSaveScreen()
+{
+  display.clearDisplay();
+  drawMenuFrame("nRF24 Scan/Save");
+  display.setTextColor(WHITE, BLACK);
+  display.setCursor(8, 28);
+  display.print("Scanning Bus Pins...");
+  display.display();
+
+  handlenRF24Scan();
+
+  auto draw = [&]() {
+    display.clearDisplay();
+    drawMenuFrame("nRF24 Scan/Save");
+
+    display.fillRect(2, 13, SCREEN_WIDTH - 4, 9, WHITE);
+    display.setTextColor(BLACK, WHITE);
+    display.setCursor(6, 14);
+    display.print("Saved: ");
+    display.print(nrf24_count);
+    display.print(" Radios [OK]");
+
+    display.drawRoundRect(2, 24, SCREEN_WIDTH - 4, 29, 2, WHITE);
+    display.setTextColor(WHITE, BLACK);
+    display.setCursor(6, 27);
+    display.print("Bus     : HSPI 10MHz");
+    display.setCursor(6, 35);
+    display.print("CSN Pins: ");
+    for ( int i = 0; i < nrf24_count && i < 4; i++ )
+    {
+      display.print(csn_pins[i]);
+      if ( i < nrf24_count - 1 && i < 3 ) display.print(",");
+    }
+    display.setCursor(6, 44);
+    display.print("Storage : Flash NVS");
+
+    drawMenuHint();
+    display.display();
+  };
+
+  draw();
+
+  while ( true )
+  {
+    updateJoystickButtons();
+    if ( btnOK.isSingle() || btnOK.isHolded() )
+      break;
+    delay(1);
+  }
+}
+
+static void toolsWifiScanScreen()
+{
+  display.clearDisplay();
+  drawMenuFrame("WiFi AP Scanner");
+  display.setTextColor(WHITE, BLACK);
+  display.setCursor(8, 28);
+  display.print("Scanning 2.4G APs...");
+  display.display();
+
+  if ( access_point == 0 )
+    WiFi.softAPdisconnect();
+  WiFi.mode(WIFI_STA);
+  delay(100);
+  int nets = scan_wifi_APs(WiFiScanChannels, false);
+  if ( access_point == 0 )
+    WiFi.softAP(ssid.c_str(), password.c_str());
+
+  int scrollOffset = 0;
+  const int maxVisible = 4;
+
+  auto draw = [&]() {
+    display.clearDisplay();
+    drawMenuFrame("WiFi AP Scanner");
+
+    display.fillRect(2, 13, SCREEN_WIDTH - 4, 9, WHITE);
+    display.setTextColor(BLACK, WHITE);
+    display.setCursor(6, 14);
+    display.print("Found: ");
+    display.print(nets);
+    display.print(" APs on 2.4G");
+
+    if ( nets == 0 )
+    {
+      display.setTextColor(WHITE, BLACK);
+      display.setCursor(8, 32);
+      display.print("No WiFi APs found");
+    }
+    else
+    {
+      display.setTextSize(1);
+      display.setTextColor(WHITE, BLACK);
+      for ( int i = 0; i < maxVisible; i++ )
+      {
+        int ch = scrollOffset + i + 1;
+        if ( ch > 14 ) break;
+
+        int y = 24 + i * 8;
+        display.setCursor(4, y);
+        display.print("Ch");
+        if ( ch < 10 ) display.print("0");
+        display.print(ch);
+        display.print(": ");
+        display.print(WiFiScanChannels[ch - 1]);
+        display.print(" [");
+        String ap = APs_array[ch - 1];
+        int nl = ap.indexOf('\n');
+        if ( nl > 0 ) ap = ap.substring(0, nl);
+        if ( ap.length() > 8 ) ap = ap.substring(0, 8);
+        if ( ap.length() == 0 ) ap = "-";
+        display.print(ap);
+        display.print("]");
+      }
+    }
+
+    if ( scrollOffset > 0 )
+    {
+      display.setCursor(120, 24); display.print("^");
+    }
+    if ( scrollOffset + maxVisible < 14 )
+    {
+      display.setCursor(120, 48); display.print("v");
+    }
+
+    display.setTextSize(1);
+    display.setTextColor(WHITE, BLACK);
+    display.setCursor(4, 55);
+    display.print("< > Scroll | OK: Exit");
+
+    display.display();
+  };
+
+  draw();
+
+  while ( true )
+  {
+    updateJoystickButtons();
+    if ( btnNext.isSingle() && scrollOffset + maxVisible < 14 )
+    {
+      scrollOffset++;
+      draw();
+    }
+    if ( btnPrevious.isSingle() && scrollOffset > 0 )
+    {
+      scrollOffset--;
+      draw();
+    }
+    if ( btnOK.isSingle() || btnOK.isHolded() )
+      break;
+    delay(1);
+  }
+}
+
+static void toolsBleScanScreen()
+{
+  display.clearDisplay();
+  drawMenuFrame("BLE Scanner");
+  display.setTextColor(WHITE, BLACK);
+  display.setCursor(8, 28);
+  display.print("Scanning BLE...");
+  display.display();
+
+  int n = scan_BLE();
+
+  auto draw = [&]() {
+    display.clearDisplay();
+    drawMenuFrame("BLE Scanner");
+
+    display.fillRect(2, 13, SCREEN_WIDTH - 4, 9, WHITE);
+    display.setTextColor(BLACK, WHITE);
+    display.setCursor(6, 14);
+    display.print("Found: ");
+    display.print(n);
+    display.print(" BLE Devices");
+
+    display.drawRoundRect(2, 24, SCREEN_WIDTH - 4, 29, 2, WHITE);
+    display.setTextColor(WHITE, BLACK);
+    display.setCursor(6, 27);
+    display.print("Radio   : ESP32 BLE 4.2");
+    display.setCursor(6, 35);
+    display.print("Packets : Adv Beacons");
+    display.setCursor(6, 44);
+    display.print("Output  : Serial Dump");
+
+    drawMenuHint();
+    display.display();
+  };
+
+  draw();
+
+  while ( true )
+  {
+    updateJoystickButtons();
+    if ( btnOK.isSingle() || btnOK.isHolded() )
+      break;
+    delay(1);
+  }
+}
+
+void tools_select()
+{
+  static const char *const labels[] = {
+      "RF self-test",       "nRF24 scan/status",   "nRF24 scan + save",
+      "WiFi scan",          "BLE scan",            "Reboot"
+  };
+  static const int icons[] = {
+      ICON_RF, ICON_SCAN, ICON_SETTINGS, ICON_WIFI, ICON_BLE, ICON_REBOOT
+  };
+  const int N = sizeof(labels) / sizeof(labels[0]);
+  int       current = 0;
+  uint32_t  lastScrollTime = 0;
+
+  auto draw = [&]() {
+    display.clearDisplay();
+    drawMenuFrame("Tools");
+    drawMenuList(labels, icons, N, current);
+    drawMenuHint();
+    display.display();
+  };
+
+  draw();
+
+  while ( true )
+  {
+    updateJoystickButtons();
+
+    if ( btnNext.isSingle() )      { current = (current + 1) % N; draw(); }
+    if ( btnPrevious.isSingle() )  { current = (current - 1 + N) % N; draw(); }
+    if ( btnOK.isHolded() )        { updateDisplay(menu_number); return; }
+
+    uint32_t now = millis();
+    if ( now - lastScrollTime >= 250 )
+    {
+      lastScrollTime = now;
+      draw();
+    }
+
+    if ( btnOK.isSingle() )
+    {
+      switch ( current )
+      {
+      case 0:
+        toolsRfTestScreen();
+        break;
+      case 1:
+        nrfStatusScreen();
+        break;
+      case 2:
+        toolsScanSaveScreen();
+        break;
+      case 3:
+        toolsWifiScanScreen();
+        break;
+      case 4:
+        toolsBleScanScreen();
+        break;
+      case 5:
+        display.clearDisplay();
+        drawMenuFrame("System");
+        display.setTextColor(WHITE, BLACK);
+        display.setCursor(20, 26);
+        display.print("Rebooting ESP32...");
+        display.display();
+        delay(500);
+        ESP.restart();
+        break;
+      }
+      draw();
+    }
+    delay(1);
+  }
 }
 
 void ble_select()
 {
-  auto display_info = [&](int flag) -> void {
-    const uint8_t *bitmap =
-        (flag == 0) ? decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_advertising_channels_64 : bitmap_advertising_channels_32) : decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_data_channels_64 : bitmap_data_channels_32);
+  static const char *const labels[] = {"BLE Advert Jam", "BLE Data Jam"};
+  static const int         icons[]  = {ICON_BLE, ICON_RF};
+  int                      current  = 0;
+  uint32_t                 lastScrollTime = 0;
+
+  auto draw = [&]() {
     display.clearDisplay();
-    display.drawBitmap(0, 0, bitmap, SCREEN_WIDTH, SCREEN_HEIGHT, WHITE);
+    drawMenuFrame("BLE Jammer");
+    drawMenuList(labels, icons, 2, current);
+    drawMenuHint();
     display.display();
   };
 
-  auto display_jam = [&](bool flag) -> void {
-    display.clearDisplay();
-    display.drawBitmap(0, 0, decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_ble_jam_64 : bitmap_ble_jam_32), SCREEN_WIDTH, SCREEN_HEIGHT, WHITE);
-    display.display();
-    if ( flag )
-    {
-      jamHandler(ble_advertising_jam, String("BLE AD Jam"), decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_ble_jam_64 : bitmap_ble_jam_32), true, true);
-    }
-    else
-    {
-      jamHandler(ble_data_jam, String("BLE Data Jam"), decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_ble_jam_64 : bitmap_ble_jam_32), true, false);
-    }
-  };
-
-  int flag = 0;
-
-  display_info(flag);
+  draw();
 
   while ( true )
   {
-updateJoystickButtons();
+    updateJoystickButtons();
 
-    if ( buttons == 0 )
+    if ( btnNext.isSingle() )
     {
-      if ( btnOK.isSingle() )
-      {
-        flag = (flag + 1) % 2;
-        display_info(flag);
-      }
-      if ( btnOK.isHolded() )
-      {
-        if ( flag == 0 )
-        {
-          display_jam(true);
-          break;
-        }
-        if ( flag == 1 )
-        {
-          display_jam(false);
-          break;
-        }
-      }
+      current = (current + 1) % 2;
+      draw();
     }
-    else if ( buttons == 1 )
+    if ( btnPrevious.isSingle() )
     {
-      if ( btnNext.isSingle() )
-      {
-        flag = (flag + 1) % 2;
-        display_info(flag);
-      }
-      if ( btnOK.isSingle() )
-      {
-        if ( flag == 0 )
-        {
-          display_jam(true);
-          break;
-        }
-        if ( flag == 1 )
-        {
-          display_jam(false);
-          break;
-        }
-      }
+      current = (current - 1 + 2) % 2;
+      draw();
     }
-    else if ( buttons == 2 )
+    if ( btnOK.isHolded() )
     {
-      if ( btnNext.isSingle() )
-      {
-        flag = (flag + 1) % 2;
-        display_info(flag);
-      }
-      if ( btnPrevious.isSingle() )
-      {
-        flag = (flag - 1 + 2) % 2;
-        display_info(flag);
-      }
-      if ( btnOK.isSingle() )
-      {
-        if ( flag == 0 )
-        {
-          display_jam(true);
-          break;
-        }
-        if ( flag == 1 )
-        {
-          display_jam(false);
-          break;
-        }
-      }
+      updateDisplay(menu_number);
+      return;
     }
+
+    uint32_t now = millis();
+    if ( now - lastScrollTime >= 250 )
+    {
+      lastScrollTime = now;
+      draw();
+    }
+
+    if ( btnOK.isSingle() )
+    {
+      if ( current == 0 )
+        jamHandler(ble_advertising_jam, String("BLE AD Jam"), nullptr, true, true);
+      else
+        jamHandler(ble_data_jam, String("BLE Data Jam"), nullptr, true, false);
+      draw();
+    }
+    delay(1);
   }
 }
 
 void wifi_select()
 {
-  auto display_info = [&](int flag, int wifi_points, int scroll_offset) -> void {
+  static const char *const labels[] = {
+      "All Ch (Jam+Deauth)",
+      "Target Ch (Scan&Pick)",
+      "Active Ch (Smart Jam)",
+      "Beacon Spam (List)",
+      "Beacon Spam (Random)"
+  };
+  static const int icons[] = {
+      ICON_WIFI, ICON_SCAN, ICON_RF, ICON_MISC, ICON_MISC
+  };
+  const int itemCount = 5;
+  int current = 0;
+  uint32_t lastScrollTime = 0;
+
+  auto draw = [&]() {
     display.clearDisplay();
-    display.setCursor(0, 0);
-    display.println("channel: " + String(flag));
-    display.setCursor(0, 10);
-    display.println("Wi-Fi APs: " + String(wifi_points));
-    String apList   = APs_array[flag - 1];
-    int    startIdx = 0;
-    for ( int i = 0; i < scroll_offset; i++ )
-    {
-      int n = apList.indexOf('\n', startIdx);
-      if ( n == -1 )
-        break;
-      startIdx = n + 1;
-    }
-    int maxLines;
-    if ( SCREEN_HEIGHT == 32 )
-    {
-      maxLines = 2;
-    }
-    else
-    {
-      maxLines = 5;
-    }
-
-    int y = 20;
-    for ( int i = 0; i < maxLines; i++ )
-    {
-      int    endIdx = apList.indexOf('\n', startIdx);
-      String line;
-      if ( endIdx == -1 )
-      {
-        line = apList.substring(startIdx);
-      }
-      else
-      {
-        line = apList.substring(startIdx, endIdx);
-      }
-      display.setCursor(0, y);
-      display.println(line);
-      y += 8;
-      if ( endIdx == -1 )
-        break;
-      startIdx = endIdx + 1;
-    }
+    drawMenuFrame("WiFi Attacks");
+    drawMenuList(labels, icons, itemCount, current);
+    drawMenuHint();
     display.display();
   };
 
-  auto scan_wifi = [&](int &channelCount, int *WiFi_channels) -> void {
-    display.clearDisplay();
-    display.setCursor(0, 0);
-    display.println("Scanning Wi-Fi APs");
-    display.display();
-    if ( access_point == 0 )
-      WiFi.softAPdisconnect();
-    WiFi.mode(WIFI_STA);
-    delay(100);
-    int networks = scan_wifi_APs(WiFiScanChannels, false);
-    display.setCursor(0, 10);
-    display.println("Finded " + String(networks) + " APs");
-    display.display();
-    if ( access_point == 0 )
-      WiFi.softAP(ssid.c_str(), password.c_str());
-    delay(1000);
-  };
-
-  auto scan_wifi_channels = [&]() -> void {
-    display.clearDisplay();
-    display.setCursor(0, 0);
-    display.println("Scanning Wi-Fi ch's");
-    display.display();
-    if ( access_point == 0 )
-      WiFi.softAPdisconnect();
-    WiFi.mode(WIFI_STA);
-    delay(100);
-    NumberChannels = scan_wifi_APs(WiFiScanChannels, true);
-    display.setCursor(0, 10);
-    display.println("Finded " + String(NumberChannels) + " active ch's");
-    display.display();
-    if ( access_point == 0 )
-      WiFi.softAP(ssid.c_str(), password.c_str());
-    delay(1000);
-  };
-
-  auto count_lines = [](const String &s) -> int {
-    int cnt = 1;
-    for ( unsigned int i = 0; i < s.length(); i++ )
-    {
-      if ( s[i] == '\n' )
-        cnt++;
-    }
-    return cnt;
-  };
-
-  int channelCount = 0;
-  int menu_number  = 0;
+  draw();
 
   while ( true )
   {
-updateJoystickButtons();
+    updateJoystickButtons();
 
-    if ( buttons == 0 )
+    if ( btnNext.isSingle() )
     {
-      if ( btnOK.isSingle() )
-      {
-        menu_number = (menu_number + 1) % 4;
-        display.clearDisplay();
-        const uint8_t *bitmap =
-            (menu_number == 0)   ? decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_wifi_all_64 : bitmap_wifi_all_32)
-            : (menu_number == 1) ? decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_wifi_select_64 : bitmap_wifi_select_32)
-            : (menu_number == 2) ? decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_smart_attack_64 : bitmap_smart_attack_32)
-                                 : decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_beacon_spam_64 : bitmap_beacon_spam_32);
-        display.drawBitmap(0, 0, bitmap, SCREEN_WIDTH, SCREEN_HEIGHT, WHITE);
-        display.display();
-      }
-      if ( btnOK.isHolded() )
-      {
-        if ( menu_number == 0 )
-        {
-updateJoystickButtons();
-          while ( !btnOK.isSingle() )
-          {
-            bool exit = jamHandler(wifi_jam, String("WiFi Jam"), decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_wifi_jam_64 : bitmap_wifi_jam_32), false, true);
-            if ( btnOK.isSingle() || exit )
-              break;
-            attackHandler(String("WiFi Deauthing"), wifi_deauth_all, decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_wifi_deauth_64 : bitmap_wifi_deauth_32));
-          }
-          return;
-        }
-        else if ( menu_number == 1 )
-        {
-          scan_wifi(channelCount, WiFiScanChannels);
-
-          int           flag          = 1;
-          int           scroll_offset = 0;
-          unsigned long last_scroll   = 0;
-          int           total_lines   = count_lines(APs_array[flag - 1]);
-
-          display_info(flag, WiFiScanChannels[flag - 1], scroll_offset);
-
-          while ( true )
-          {
-updateJoystickButtons();
-
-            if ( btnOK.isSingle() )
-            {
-              flag++;
-              if ( flag > 14 )
-                flag = 1;
-              scroll_offset = 0;
-              total_lines   = count_lines(APs_array[flag - 1]);
-              display_info(flag, WiFiScanChannels[flag - 1], scroll_offset);
-              last_scroll = millis();
-            }
-
-            if ( total_lines > ((SCREEN_HEIGHT == 32) ? 2 : 5) && millis() - last_scroll >= 1000 )
-            {
-              scroll_offset++;
-              int maxLines = (SCREEN_HEIGHT == 32) ? 2 : 5;
-              if ( scroll_offset + maxLines > total_lines )
-              {
-                scroll_offset = 0;
-              }
-              display_info(flag, WiFiScanChannels[flag - 1], scroll_offset);
-              last_scroll = millis();
-            }
-
-            if ( btnOK.isHolded() )
-            {
-updateJoystickButtons();
-              while ( !btnOK.isSingle() )
-              {
-                display.clearDisplay();
-                display.drawBitmap(0, 0, decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_wifi_jam_64 : bitmap_wifi_jam_32), SCREEN_WIDTH, SCREEN_HEIGHT, WHITE);
-                display.display();
-                Serial.println(flag - 1);
-                bool exit = jamHandler(wifi_channel, "Jamming WiFi channel", decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_wifi_jam_64 : bitmap_wifi_jam_32), false, true, false, false, flag - 1, 0);
-                if ( btnOK.isSingle() || exit )
-                  break;
-                display.clearDisplay();
-                display.drawBitmap(0, 0, decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_wifi_deauth_64 : bitmap_wifi_deauth_32), SCREEN_WIDTH, SCREEN_HEIGHT, WHITE);
-                display.display();
-                wifi_deauth_channel(flag);
-              }
-              return;
-            }
-          }
-        }
-        else if ( menu_number == 2 )
-        {
-updateJoystickButtons();
-          scan_wifi_channels();
-          while ( !btnOK.isSingle() )
-          {
-            bool exit = jamHandler(wifi_scan_jam, String("WiFi Jam"), decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_wifi_jam_64 : bitmap_wifi_jam_32), false, true);
-            if ( btnOK.isSingle() || exit )
-              break;
-            attackHandler(String("WiFi Deauthing"), wifi_deauth_scan, decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_wifi_deauth_64 : bitmap_wifi_deauth_32));
-          }
-          return;
-        }
-        else if ( menu_number == 3 )
-        {
-          menu_number = 0;
-          display.clearDisplay();
-          display.drawBitmap(0, 0, decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_list_ssids_64 : bitmap_list_ssids_32), SCREEN_WIDTH, SCREEN_HEIGHT, WHITE);
-          display.display();
-          while ( true )
-          {
-updateJoystickButtons();
-            if ( btnOK.isSingle() )
-            {
-              menu_number = (menu_number + 1) % 2;
-              display.clearDisplay();
-              const uint8_t *bitmap =
-                  (menu_number == 0) ? decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_list_ssids_64 : bitmap_list_ssids_32) : decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_random_ssids_64 : bitmap_random_ssids_32);
-              display.drawBitmap(0, 0, bitmap, SCREEN_WIDTH, SCREEN_HEIGHT, WHITE);
-              display.display();
-            }
-            if ( btnOK.isHolded() )
-            {
-              switch ( menu_number )
-              {
-              case 0:
-                attackHandler(String("WiFi Beacon Spaming"), wifi_beacon_spam_array, decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_beacon_spaming_64 : bitmap_beacon_spaming_32));
-                break;
-              case 1:
-                attackHandler(String("WiFi Beacon Spaming"), wifi_beacon_spam_random, decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_beacon_spaming_64 : bitmap_beacon_spaming_32));
-                break;
-              }
-              break;
-            }
-          }
-          return;
-        }
-      }
+      current = (current + 1) % itemCount;
+      draw();
+    }
+    if ( btnPrevious.isSingle() )
+    {
+      current = (current - 1 + itemCount) % itemCount;
+      draw();
+    }
+    if ( btnOK.isHolded() )
+    {
+      updateDisplay(menu_number);
+      return;
     }
 
-    if ( buttons == 1 )
+    uint32_t now = millis();
+    if ( now - lastScrollTime >= 250 )
     {
-      if ( btnNext.isSingle() )
-      {
-        menu_number = (menu_number + 1) % 4;
-        display.clearDisplay();
-        const uint8_t *bitmap =
-            (menu_number == 0)   ? decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_wifi_all_64 : bitmap_wifi_all_32)
-            : (menu_number == 1) ? decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_wifi_select_64 : bitmap_wifi_select_32)
-            : (menu_number == 2) ? decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_smart_attack_64 : bitmap_smart_attack_32)
-                                 : decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_beacon_spam_64 : bitmap_beacon_spam_32);
-        display.drawBitmap(0, 0, bitmap, SCREEN_WIDTH, SCREEN_HEIGHT, WHITE);
-        display.display();
-      }
-      if ( btnOK.isSingle() )
-      {
-        if ( menu_number == 0 )
-        {
-updateJoystickButtons();
-          while ( !btnOK.isSingle() )
-          {
-            bool exit = jamHandler(wifi_jam, String("WiFi Jam"), decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_wifi_jam_64 : bitmap_wifi_jam_32), false, true);
-            if ( btnOK.isSingle() || exit )
-              break;
-            attackHandler(String("WiFi Deauthing"), wifi_deauth_all, decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_wifi_deauth_64 : bitmap_wifi_deauth_32));
-          }
-          return;
-        }
-        else if ( menu_number == 1 )
-        {
-          scan_wifi(channelCount, WiFiScanChannels);
-
-          int           flag          = 1;
-          int           scroll_offset = 0;
-          unsigned long last_scroll   = 0;
-          int           total_lines   = count_lines(APs_array[flag - 1]);
-
-          display_info(flag, WiFiScanChannels[flag - 1], scroll_offset);
-
-          while ( true )
-          {
-updateJoystickButtons();
-
-            if ( btnNext.isSingle() )
-            {
-              flag++;
-              if ( flag > 14 )
-                flag = 1;
-              scroll_offset = 0;
-              total_lines   = count_lines(APs_array[flag - 1]);
-              display_info(flag, WiFiScanChannels[flag - 1], scroll_offset);
-              last_scroll = millis();
-            }
-
-            if ( total_lines > ((SCREEN_HEIGHT == 32) ? 2 : 5) && millis() - last_scroll >= 1000 )
-            {
-              scroll_offset++;
-              int maxLines = (SCREEN_HEIGHT == 32) ? 2 : 5;
-              if ( scroll_offset + maxLines > total_lines )
-              {
-                scroll_offset = 0;
-              }
-              display_info(flag, WiFiScanChannels[flag - 1], scroll_offset);
-              last_scroll = millis();
-            }
-
-            if ( btnOK.isSingle() )
-            {
-updateJoystickButtons();
-              while ( !btnOK.isSingle() )
-              {
-                display.clearDisplay();
-                display.drawBitmap(0, 0, decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_wifi_jam_64 : bitmap_wifi_jam_32), SCREEN_WIDTH, SCREEN_HEIGHT, WHITE);
-                display.display();
-                Serial.println(flag - 1);
-                bool exit = jamHandler(wifi_channel, "Jamming WiFi channel", decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_wifi_jam_64 : bitmap_wifi_jam_32), false, true, false, false, flag - 1, 0);
-                if ( btnOK.isSingle() || exit )
-                  break;
-                display.clearDisplay();
-                display.drawBitmap(0, 0, decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_wifi_deauth_64 : bitmap_wifi_deauth_32), SCREEN_WIDTH, SCREEN_HEIGHT, WHITE);
-                display.display();
-                wifi_deauth_channel(flag);
-              }
-              return;
-            }
-          }
-        }
-        else if ( menu_number == 2 )
-        {
-updateJoystickButtons();
-          scan_wifi_channels();
-          while ( !btnOK.isSingle() )
-          {
-            bool exit = jamHandler(wifi_scan_jam, String("WiFi Jam"), decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_wifi_jam_64 : bitmap_wifi_jam_32), false, true);
-            if ( btnOK.isSingle() || exit )
-              break;
-            attackHandler(String("WiFi Deauthing"), wifi_deauth_scan, decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_wifi_deauth_64 : bitmap_wifi_deauth_32));
-          }
-          return;
-        }
-        else if ( menu_number == 3 )
-        {
-          menu_number = 0;
-          display.clearDisplay();
-          display.drawBitmap(0, 0, decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_list_ssids_64 : bitmap_list_ssids_32), SCREEN_WIDTH, SCREEN_HEIGHT, WHITE);
-          display.display();
-          while ( true )
-          {
-updateJoystickButtons();
-            if ( btnNext.isSingle() )
-            {
-              menu_number = (menu_number + 1) % 2;
-              display.clearDisplay();
-              const uint8_t *bitmap =
-                  (menu_number == 0) ? decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_list_ssids_64 : bitmap_list_ssids_32) : decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_random_ssids_64 : bitmap_random_ssids_32);
-              display.drawBitmap(0, 0, bitmap, SCREEN_WIDTH, SCREEN_HEIGHT, WHITE);
-              display.display();
-            }
-            if ( btnOK.isSingle() )
-            {
-              switch ( menu_number )
-              {
-              case 0:
-                attackHandler(String("WiFi Beacon Spaming"), wifi_beacon_spam_array, decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_beacon_spaming_64 : bitmap_beacon_spaming_32));
-                break;
-              case 1:
-                attackHandler(String("WiFi Beacon Spaming"), wifi_beacon_spam_random, decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_beacon_spaming_64 : bitmap_beacon_spaming_32));
-                break;
-              }
-              break;
-            }
-          }
-          return;
-        }
-      }
+      lastScrollTime = now;
+      draw();
     }
 
-    if ( buttons == 2 )
+    if ( btnOK.isSingle() )
     {
-      if ( btnNext.isSingle() )
+      switch ( current )
       {
-        menu_number = (menu_number + 1) % 4;
-        display.clearDisplay();
-        const uint8_t *bitmap =
-            (menu_number == 0)   ? decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_wifi_all_64 : bitmap_wifi_all_32)
-            : (menu_number == 1) ? decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_wifi_select_64 : bitmap_wifi_select_32)
-            : (menu_number == 2) ? decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_smart_attack_64 : bitmap_smart_attack_32)
-                                 : decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_beacon_spam_64 : bitmap_beacon_spam_32);
-        display.drawBitmap(0, 0, bitmap, SCREEN_WIDTH, SCREEN_HEIGHT, WHITE);
-        display.display();
+      case 0: // All Channels
+      {
+        while ( !btnOK.isSingle() )
+        {
+          bool exit = jamHandler(wifi_jam, String("WiFi Jam All"), nullptr, false, true);
+          if ( btnOK.isSingle() || exit )
+            break;
+          attackHandler(String("WiFi Deauth All"), wifi_deauth_all, nullptr);
+        }
+        break;
       }
-      if ( btnPrevious.isSingle() )
+      case 1: // Target Channel Scan & Pick
       {
-        menu_number = (menu_number - 1 + 4) % 4;
         display.clearDisplay();
-        const uint8_t *bitmap =
-            (menu_number == 0)   ? decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_wifi_all_64 : bitmap_wifi_all_32)
-            : (menu_number == 1) ? decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_wifi_select_64 : bitmap_wifi_select_32)
-            : (menu_number == 2) ? decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_smart_attack_64 : bitmap_smart_attack_32)
-                                 : decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_beacon_spam_64 : bitmap_beacon_spam_32);
-        display.drawBitmap(0, 0, bitmap, SCREEN_WIDTH, SCREEN_HEIGHT, WHITE);
+        drawMenuFrame("WiFi Scanner");
+        display.setTextColor(WHITE, BLACK);
+        display.setCursor(10, 26);
+        display.print("Scanning APs...");
         display.display();
-      }
 
-      if ( btnOK.isSingle() )
-      {
-        if ( menu_number == 0 )
-        {
-updateJoystickButtons();
-          while ( !btnOK.isSingle() )
-          {
-            bool exit = jamHandler(wifi_jam, String("WiFi Jam"), decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_wifi_jam_64 : bitmap_wifi_jam_32), false, true);
-            if ( btnOK.isSingle() || exit )
-              break;
-            attackHandler(String("WiFi Deauthing"), wifi_deauth_all, decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_wifi_deauth_64 : bitmap_wifi_deauth_32));
-          }
-          return;
-        }
-        else if ( menu_number == 1 )
-        {
-          scan_wifi(channelCount, WiFiScanChannels);
+        if ( access_point == 0 )
+          WiFi.softAPdisconnect();
+        WiFi.mode(WIFI_STA);
+        delay(100);
+        scan_wifi_APs(WiFiScanChannels, false);
+        if ( access_point == 0 )
+          WiFi.softAP(ssid.c_str(), password.c_str());
 
-          int           flag          = 1;
-          int           scroll_offset = 0;
-          unsigned long last_scroll   = 0;
-          int           total_lines   = count_lines(APs_array[flag - 1]);
-
-          display_info(flag, WiFiScanChannels[flag - 1], scroll_offset);
-
-          while ( true )
-          {
-updateJoystickButtons();
-
-            if ( btnNext.isSingle() )
-            {
-              flag++;
-              if ( flag > 14 )
-                flag = 1;
-              scroll_offset = 0;
-              total_lines   = count_lines(APs_array[flag - 1]);
-              display_info(flag, WiFiScanChannels[flag - 1], scroll_offset);
-              last_scroll = millis();
-            }
-
-            if ( btnPrevious.isSingle() )
-            {
-              flag--;
-              if ( flag < 1 )
-                flag = 14;
-              scroll_offset = 0;
-              total_lines   = count_lines(APs_array[flag - 1]);
-              display_info(flag, WiFiScanChannels[flag - 1], scroll_offset);
-              last_scroll = millis();
-            }
-
-            if ( total_lines > ((SCREEN_HEIGHT == 32) ? 2 : 5) && millis() - last_scroll >= 1000 )
-            {
-              scroll_offset++;
-              int maxLines = (SCREEN_HEIGHT == 32) ? 2 : 5;
-              if ( scroll_offset + maxLines > total_lines )
-              {
-                scroll_offset = 0;
-              }
-              display_info(flag, WiFiScanChannels[flag - 1], scroll_offset);
-              last_scroll = millis();
-            }
-
-            if ( btnOK.isSingle() )
-            {
-updateJoystickButtons();
-              while ( !btnOK.isSingle() )
-              {
-                display.clearDisplay();
-                display.drawBitmap(0, 0, decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_wifi_jam_64 : bitmap_wifi_jam_32), SCREEN_WIDTH, SCREEN_HEIGHT, WHITE);
-                display.display();
-                bool exit = jamHandler(wifi_channel, "Jamming WiFi channel", decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_wifi_jam_64 : bitmap_wifi_jam_32), false, true, false, false, flag - 1, 0);
-                if ( btnOK.isSingle() || exit )
-                  break;
-                display.clearDisplay();
-                display.drawBitmap(0, 0, decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_wifi_deauth_64 : bitmap_wifi_deauth_32), SCREEN_WIDTH, SCREEN_HEIGHT, WHITE);
-                display.display();
-                wifi_deauth_channel(flag);
-              }
-              return;
-            }
-          }
-        }
-        else if ( menu_number == 2 )
-        {
-updateJoystickButtons();
-          scan_wifi_channels();
-          while ( !btnOK.isSingle() )
-          {
-            bool exit = jamHandler(wifi_scan_jam, String("WiFi Jam"), decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_wifi_jam_64 : bitmap_wifi_jam_32), false, true);
-            if ( btnOK.isSingle() || exit )
-              break;
-            attackHandler(String("WiFi Deauthing"), wifi_deauth_scan, decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_wifi_deauth_64 : bitmap_wifi_deauth_32));
-          }
-          return;
-        }
-        else if ( menu_number == 3 )
-        {
-          menu_number = 0;
+        int targetCh = 1;
+        bool inChannelPicker = true;
+        auto drawPicker = [&]() {
           display.clearDisplay();
-          display.drawBitmap(0, 0, decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_list_ssids_64 : bitmap_list_ssids_32), SCREEN_WIDTH, SCREEN_HEIGHT, WHITE);
+          drawMenuFrame("Target WiFi Ch");
+
+          display.drawRoundRect(2, 14, SCREEN_WIDTH - 4, 38, 3, WHITE);
+          display.setTextColor(WHITE, BLACK);
+          display.setCursor(8, 18);
+          display.print("< Channel: ");
+          if ( targetCh < 10 ) display.print(" ");
+          display.print(targetCh);
+          display.print(" >");
+
+          display.setCursor(8, 28);
+          display.print("APs Detected: ");
+          display.print(WiFiScanChannels[targetCh - 1]);
+
+          display.setCursor(8, 38);
+          String apSample = APs_array[targetCh - 1];
+          int nl = apSample.indexOf('\n');
+          if ( nl > 0 ) apSample = apSample.substring(0, nl);
+          if ( apSample.length() > 17 ) apSample = apSample.substring(0, 17);
+          if ( apSample.length() == 0 ) apSample = "(No APs detected)";
+          display.print(apSample);
+
+          drawMenuHint();
           display.display();
-          while ( true )
+        };
+
+        drawPicker();
+
+        while ( inChannelPicker )
+        {
+          updateJoystickButtons();
+          if ( btnNext.isSingle() )
           {
-updateJoystickButtons();
-            if ( btnNext.isSingle() )
-            {
-              menu_number = (menu_number + 1) % 2;
-              display.clearDisplay();
-              const uint8_t *bitmap =
-                  (menu_number == 0) ? decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_list_ssids_64 : bitmap_list_ssids_32) : decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_random_ssids_64 : bitmap_random_ssids_32);
-              display.drawBitmap(0, 0, bitmap, SCREEN_WIDTH, SCREEN_HEIGHT, WHITE);
-              display.display();
-            }
-            if ( btnPrevious.isSingle() )
-            {
-              menu_number = (menu_number - 1 + 2) % 2;
-              display.clearDisplay();
-              const uint8_t *bitmap =
-                  (menu_number == 0) ? decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_list_ssids_64 : bitmap_list_ssids_32) : decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_random_ssids_64 : bitmap_random_ssids_32);
-              display.drawBitmap(0, 0, bitmap, SCREEN_WIDTH, SCREEN_HEIGHT, WHITE);
-              display.display();
-            }
-            if ( btnOK.isSingle() )
-            {
-              switch ( menu_number )
-              {
-              case 0:
-                attackHandler(String("WiFi Beacon Spaming"), wifi_beacon_spam_array, decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_beacon_spaming_64 : bitmap_beacon_spaming_32));
-                break;
-              case 1:
-                attackHandler(String("WiFi Beacon Spaming"), wifi_beacon_spam_random, decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_beacon_spaming_64 : bitmap_beacon_spaming_32));
-                break;
-              }
-              break;
-            }
+            targetCh++;
+            if ( targetCh > 14 ) targetCh = 1;
+            drawPicker();
           }
-          return;
+          if ( btnPrevious.isSingle() )
+          {
+            targetCh--;
+            if ( targetCh < 1 ) targetCh = 14;
+            drawPicker();
+          }
+          if ( btnOK.isHolded() )
+          {
+            inChannelPicker = false;
+            break;
+          }
+          if ( btnOK.isSingle() )
+          {
+            while ( !btnOK.isSingle() )
+            {
+              bool exit = jamHandler(wifi_channel, "Jamming Ch " + String(targetCh), nullptr, false, true, false, false, targetCh - 1, 0);
+              if ( btnOK.isSingle() || exit )
+                break;
+              wifi_deauth_channel(targetCh);
+            }
+            break;
+          }
+          delay(1);
         }
+        break;
       }
+      case 2: // Active Channels Only (Smart Attack)
+      {
+        display.clearDisplay();
+        drawMenuFrame("Active Ch Scan");
+        display.setTextColor(WHITE, BLACK);
+        display.setCursor(10, 26);
+        display.print("Scanning Channels...");
+        display.display();
+
+        if ( access_point == 0 )
+          WiFi.softAPdisconnect();
+        WiFi.mode(WIFI_STA);
+        delay(100);
+        NumberChannels = scan_wifi_APs(WiFiScanChannels, true);
+        if ( access_point == 0 )
+          WiFi.softAP(ssid.c_str(), password.c_str());
+
+        while ( !btnOK.isSingle() )
+        {
+          bool exit = jamHandler(wifi_scan_jam, String("WiFi Smart Jam"), nullptr, false, true);
+          if ( btnOK.isSingle() || exit )
+            break;
+          attackHandler(String("WiFi Deauth Scan"), wifi_deauth_scan, nullptr);
+        }
+        break;
+      }
+      case 3: // Beacon Spam (List)
+      {
+        attackHandler(String("WiFi Beacon Spam"), wifi_beacon_spam_array, nullptr);
+        break;
+      }
+      case 4: // Beacon Spam (Random)
+      {
+        attackHandler(String("WiFi Beacon Spam"), wifi_beacon_spam_random, nullptr);
+        break;
+      }
+      }
+      draw();
     }
+    delay(1);
   }
+}
+
+static void showBiosBootScreen()
+{
+  static const char *const biosLines[] = {
+      "CPU: ESP32 @ 240MHz",
+      "RAM: 320KB | ROM: 4MB",
+      "HSPI: Bus 10MHz  [OK]",
+      "nRF24: Active    [OK]",
+      "WiFi : 802.11bgn [OK]",
+      "BLE  : 4.2 Stack [OK]",
+      "SYS  : Guard ON  [OK]",
+      "BOOT : Starting OS..."
+  };
+  const int totalLines = sizeof(biosLines) / sizeof(biosLines[0]);
+  const int maxVisible = (SCREEN_HEIGHT == 32) ? 2 : 4;
+
+  for ( int step = 1; step <= totalLines; step++ )
+  {
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setTextColor(WHITE, BLACK);
+
+    if ( SCREEN_HEIGHT == 32 )
+    {
+      int startIdx = (step > maxVisible) ? (step - maxVisible) : 0;
+      int count = (step > maxVisible) ? maxVisible : step;
+      for ( int i = 0; i < count; i++ )
+      {
+        int lineIdx = startIdx + i;
+        display.setCursor(4, 2 + i * 10);
+        display.print("> ");
+        display.print(biosLines[lineIdx]);
+      }
+      display.setCursor(4, 24);
+      display.print("___.: By Lucx :.____");
+    }
+    else
+    {
+      display.setCursor(4, 2);
+      display.print("* Mee_BIOS v2.4 *");
+      display.drawFastHLine(0, 11, SCREEN_WIDTH, WHITE);
+
+      int startIdx = (step > maxVisible) ? (step - maxVisible) : 0;
+      int count = (step > maxVisible) ? maxVisible : step;
+
+      for ( int i = 0; i < count; i++ )
+      {
+        int lineIdx = startIdx + i;
+        int y = 14 + i * 9;
+        display.setCursor(4, y);
+        display.print("> ");
+        display.print(biosLines[lineIdx]);
+      }
+
+      display.drawFastHLine(0, 52, SCREEN_WIDTH, WHITE);
+      display.setCursor(4, 55);
+      display.print("___.: By Lucx :.____");
+    }
+
+    display.display();
+    delay(200);
+  }
+  delay(400);
 }
 
 void setup()
@@ -2429,36 +2882,15 @@ void setup()
   {
     display.ssd1306_command(SSD1306_DISPLAYOFF);
   }
-  display.clearDisplay();
-  if ( logo == 0 )
-  {
-    display.drawBitmap(0, 0, decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_logo_64 : bitmap_logo_32), SCREEN_WIDTH, SCREEN_HEIGHT, WHITE);
-  }
-  else
-  {
-    display.setCursor(0, 0);
-    display.println("Scanning Wi-Fi APs");
-  }
-  display.display();
+  showBiosBootScreen();
+
   Serial.println("  Scanning Wi-Fi APs");
-
   int networks = scan_wifi_APs(WiFiScanChannels, false);
-
-  if ( logo != 0 )
-  {
-    display.setCursor(0, 10);
-    display.println("Finded " + String(networks) + " APs");
-    display.display();
-    delay(1000);
-  }
   Serial.println("  Finded " + String(networks) + " APs");
 
   Serial.println("  help ==> Displays a list of available commands\n");
 
-  display.setCursor(0, 0);
-  display.clearDisplay();
-  display.drawBitmap(0, 0, decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_bluetooth_jammer_64 : bitmap_bluetooth_jammer_32), SCREEN_WIDTH, SCREEN_HEIGHT, WHITE);
-  display.display();
+  updateDisplay(0);
 }
 
 void executeAction(int menuNum)
@@ -2506,6 +2938,12 @@ void executeAction(int menuNum)
     updateDisplay(menu_number);
     return;
   }
+  if ( menuNum == 13 )
+  {
+    tools_select();
+    updateDisplay(menu_number);
+    return;
+  }
 
   if ( nrf24_count <= 0 )
   {
@@ -2537,13 +2975,13 @@ void executeAction(int menuNum)
     jamHandler(zigbee_jam, String("Zigbee Jamming"), decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_zigbee_jam_64 : bitmap_zigbee_jam_32), false, false);
     break;
   case 7:
-    jamHandler(full_24g_jam, String("Full 2.4 GHz Jamming"), decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_misc_jammer_64 : bitmap_misc_jammer_32), false, false);
+    jamHandler(full_24g_jam, String("Full 2.4 GHz"), nullptr, false, false);
     break;
   case 8:
-    jamHandler(usb_24g_jam, String("USB 2.4 GHz Jamming"), decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_misc_jammer_64 : bitmap_misc_jammer_32), false, false);
+    jamHandler(usb_24g_jam, String("USB 2.4 GHz"), nullptr, false, false);
     break;
   case 9:
-    jamHandler(fpv_video_jam, String("FPV/Video Jamming"), decodeLZSS((SCREEN_HEIGHT == 64) ? bitmap_misc_jammer_64 : bitmap_misc_jammer_32), false, false);
+    jamHandler(fpv_video_jam, String("FPV / Video"), nullptr, false, false);
     break;
   default:
     break;
@@ -2572,7 +3010,7 @@ updateJoystickButtons();
   {
     if ( btnOK.isSingle() )
     {
-      menu_number = (menu_number + 1) % 13;
+      menu_number = (menu_number + 1) % 14;
       updateDisplay(menu_number);
     }
     if ( btnOK.isHolded() )
@@ -2589,7 +3027,7 @@ updateJoystickButtons();
     }
     if ( btnNext.isSingle() )
     {
-      menu_number = (menu_number + 1) % 13;
+      menu_number = (menu_number + 1) % 14;
       updateDisplay(menu_number);
     }
   }
@@ -2602,13 +3040,13 @@ updateJoystickButtons();
 
     if ( btnNext.isSingle() )
     {
-      menu_number = (menu_number + 1) % 13;
+      menu_number = (menu_number + 1) % 14;
       updateDisplay(menu_number);
     }
 
     if ( btnPrevious.isSingle() )
     {
-      menu_number = (menu_number - 1 + 13) % 13;
+      menu_number = (menu_number - 1 + 14) % 14;
       updateDisplay(menu_number);
     }
   }

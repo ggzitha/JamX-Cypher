@@ -2,6 +2,7 @@
 #define JAM_H
 
 #include "attack.h"
+#include "bitmap.h"
 #include "config.h"
 #include "scan.h"
 #include "serial.h"
@@ -60,6 +61,8 @@ void ble_scan_flood_task();     // BLE scan + advertise flood
 bool jamHandler(void (*action)(), String htmlResponse = "", const unsigned char *bitmap = nullptr, bool CW = false, bool mode = false, bool isMisc = false, bool scan = false, int ch1 = 0, int ch2 = 0);
 
 void updateDisplay(int menuNum);
+void drawActiveJamScreen(const String &title, int animStep, int menuIdx = -1, const unsigned char *customBitmap = nullptr, const String &subDetail = "");
+void drawLargeModuleLogo(int menuNum, int cx = 64, int cy = 32);
 
 // nRF24 detection / status (defined in nRF24_jammer.cpp)
 int  detectNRF24Modules(int *found_ce, int *found_csn);

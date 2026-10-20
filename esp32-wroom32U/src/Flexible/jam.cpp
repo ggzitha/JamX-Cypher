@@ -1279,15 +1279,258 @@ bool rfTest(int *detected, int *total)
 }
 
 // ---------------------------------------------------------------------------
+// Creative Large Logos for Modules
+// ---------------------------------------------------------------------------
+void drawLargeModuleLogo(int menuNum, int cx, int cy)
+{
+  switch ( menuNum )
+  {
+  case 0: // Bluetooth
+    display.drawLine(cx, cy - 14, cx, cy + 14, WHITE);
+    display.drawLine(cx, cy - 14, cx + 8, cy - 6, WHITE);
+    display.drawLine(cx + 8, cy - 6, cx - 8, cy + 8, WHITE);
+    display.drawLine(cx - 8, cy - 8, cx + 8, cy + 6, WHITE);
+    display.drawLine(cx + 8, cy + 6, cx, cy + 14, WHITE);
+    display.drawCircleHelper(cx, cy, 14, 2 | 4, WHITE);
+    display.drawCircleHelper(cx, cy, 14, 1 | 8, WHITE);
+    break;
+
+  case 1: // Drone
+    display.drawRoundRect(cx - 6, cy - 5, 12, 10, 2, WHITE);
+    display.fillCircle(cx, cy, 2, WHITE);
+    display.drawLine(cx - 5, cy - 4, cx - 16, cy - 12, WHITE);
+    display.drawLine(cx + 5, cy - 4, cx + 16, cy - 12, WHITE);
+    display.drawLine(cx - 5, cy + 4, cx - 16, cy + 12, WHITE);
+    display.drawLine(cx + 5, cy + 4, cx + 16, cy + 12, WHITE);
+    display.drawCircle(cx - 16, cy - 12, 4, WHITE);
+    display.drawCircle(cx + 16, cy - 12, 4, WHITE);
+    display.drawCircle(cx - 16, cy + 12, 4, WHITE);
+    display.drawCircle(cx + 16, cy + 12, 4, WHITE);
+    break;
+
+  case 2: // WiFi
+    display.fillCircle(cx, cy + 10, 2, WHITE);
+    display.drawCircleHelper(cx, cy + 10, 6, 1 | 2, WHITE);
+    display.drawCircleHelper(cx, cy + 10, 11, 1 | 2, WHITE);
+    display.drawCircleHelper(cx, cy + 10, 16, 1 | 2, WHITE);
+    display.drawLine(cx + 4, cy - 8, cx - 2, cy + 2, WHITE);
+    display.drawLine(cx - 2, cy + 2, cx + 2, cy + 2, WHITE);
+    display.drawLine(cx + 2, cy + 2, cx - 4, cy + 10, WHITE);
+    break;
+
+  case 3: // BLE
+    display.drawLine(cx - 6, cy - 12, cx - 6, cy + 12, WHITE);
+    display.drawLine(cx - 6, cy - 12, cx + 2, cy - 5, WHITE);
+    display.drawLine(cx + 2, cy - 5, cx - 12, cy + 7, WHITE);
+    display.drawLine(cx - 12, cy - 7, cx + 2, cy + 5, WHITE);
+    display.drawLine(cx + 2, cy + 5, cx - 6, cy + 12, WHITE);
+    display.setTextSize(1);
+    display.setCursor(cx + 6, cy - 4);
+    display.print("LE");
+    break;
+
+  case 4: // Zigbee
+    display.drawCircle(cx, cy, 14, WHITE);
+    display.drawLine(cx - 9, cy - 8, cx + 9, cy - 8, WHITE);
+    display.drawLine(cx + 9, cy - 8, cx - 9, cy + 8, WHITE);
+    display.drawLine(cx - 9, cy + 8, cx + 9, cy + 8, WHITE);
+    display.fillCircle(cx - 12, cy, 2, WHITE);
+    display.fillCircle(cx + 12, cy, 2, WHITE);
+    break;
+
+  case 5: // Misc Sweep
+    display.drawFastHLine(cx - 20, cy + 8, 40, WHITE);
+    display.drawLine(cx - 16, cy + 8, cx - 10, cy - 10, WHITE);
+    display.drawLine(cx - 10, cy - 10, cx - 4, cy + 8, WHITE);
+    display.drawLine(cx + 4, cy + 8, cx + 10, cy - 10, WHITE);
+    display.drawLine(cx + 10, cy - 10, cx + 16, cy + 8, WHITE);
+    display.drawFastHLine(cx - 8, cy - 2, 16, WHITE);
+    display.drawLine(cx - 8, cy - 2, cx - 5, cy - 5, WHITE);
+    display.drawLine(cx + 8, cy - 2, cx + 5, cy - 5, WHITE);
+    break;
+
+  case 6: // Settings
+    display.drawCircle(cx, cy, 11, WHITE);
+    display.drawCircle(cx, cy, 5, WHITE);
+    for ( int a = 0; a < 8; a++ )
+    {
+      float rad = a * 0.785398;
+      int   x1  = cx + cos(rad) * 8;
+      int   y1  = cy + sin(rad) * 8;
+      int   x2  = cx + cos(rad) * 14;
+      int   y2  = cy + sin(rad) * 14;
+      display.drawLine(x1, y1, x2, y2, WHITE);
+    }
+    break;
+
+  case 7: // Full 2.4 GHz (Spectrum waterfall)
+    display.fillRect(cx - 18, cy + 4, 3, 6, WHITE);
+    display.fillRect(cx - 13, cy - 2, 3, 12, WHITE);
+    display.fillRect(cx - 8,  cy - 8, 3, 18, WHITE);
+    display.fillRect(cx - 3,  cy - 12, 6, 22, WHITE);
+    display.fillRect(cx + 5,  cy - 6, 3, 16, WHITE);
+    display.fillRect(cx + 10, cy + 1, 3, 9, WHITE);
+    display.fillRect(cx + 15, cy + 6, 3, 4, WHITE);
+    display.drawFastHLine(cx - 20, cy + 11, 40, WHITE);
+    display.setTextSize(1);
+    display.setCursor(cx - 12, cy - 14);
+    display.print("2.4G");
+    break;
+
+  case 8: // USB 2.4 GHz
+    display.drawRoundRect(cx - 14, cy - 6, 16, 14, 2, WHITE);
+    display.drawRect(cx + 2, cy - 4, 10, 10, WHITE);
+    display.fillRect(cx + 5, cy - 2, 3, 2, WHITE);
+    display.fillRect(cx + 5, cy + 2, 3, 2, WHITE);
+    display.drawCircleHelper(cx - 14, cy + 1, 6, 1 | 8, WHITE);
+    display.drawCircleHelper(cx - 14, cy + 1, 10, 1 | 8, WHITE);
+    display.drawCircleHelper(cx - 14, cy + 1, 14, 1 | 8, WHITE);
+    break;
+
+  case 9: // FPV / Video
+    display.drawRoundRect(cx - 18, cy - 8, 36, 18, 4, WHITE);
+    display.drawCircle(cx - 8, cy + 1, 5, WHITE);
+    display.drawCircle(cx + 8, cy + 1, 5, WHITE);
+    display.drawLine(cx - 2, cy + 1, cx + 2, cy + 1, WHITE);
+    display.drawLine(cx, cy - 8, cx, cy - 14, WHITE);
+    display.fillCircle(cx, cy - 14, 2, WHITE);
+    break;
+
+  case 10: // HID Jammer
+    display.drawRoundRect(cx - 18, cy - 4, 22, 14, 2, WHITE);
+    display.drawFastHLine(cx - 15, cy - 1, 16, WHITE);
+    display.drawFastHLine(cx - 15, cy + 2, 16, WHITE);
+    display.drawFastHLine(cx - 13, cy + 6, 12, WHITE);
+    display.drawRoundRect(cx + 8, cy - 6, 10, 16, 4, WHITE);
+    display.drawFastVLine(cx + 13, cy - 5, 5, WHITE);
+    display.drawLine(cx + 5, cy - 4, cx + 3, cy, WHITE);
+    display.drawLine(cx + 3, cy, cx + 6, cy + 2, WHITE);
+    display.drawLine(cx + 6, cy + 2, cx + 4, cy + 6, WHITE);
+    break;
+
+  case 11: // RC Jammer
+    display.drawRoundRect(cx - 15, cy - 8, 30, 20, 3, WHITE);
+    display.drawCircle(cx - 8, cy + 1, 4, WHITE);
+    display.fillCircle(cx - 8, cy + 1, 1, WHITE);
+    display.drawCircle(cx + 8, cy + 1, 4, WHITE);
+    display.fillCircle(cx + 8, cy + 1, 1, WHITE);
+    display.drawRect(cx - 3, cy - 4, 6, 4, WHITE);
+    display.drawLine(cx, cy - 8, cx, cy - 15, WHITE);
+    display.drawCircleHelper(cx, cy - 15, 4, 1 | 2, WHITE);
+    break;
+
+  case 12: // Apple BLE Flood
+    display.drawCircle(cx, cy + 2, 8, WHITE);
+    display.fillCircle(cx - 3, cy + 1, 5, WHITE);
+    display.fillCircle(cx + 3, cy + 1, 5, WHITE);
+    display.drawCircleHelper(cx + 1, cy - 9, 4, 4, WHITE);
+    display.drawRoundRect(cx - 20, cy - 11, 12, 8, 1, WHITE);
+    display.drawRoundRect(cx + 9,  cy - 12, 12, 8, 1, WHITE);
+    display.drawRoundRect(cx + 9,  cy + 3,  12, 8, 1, WHITE);
+    break;
+
+  case 13: // Tools
+    display.drawRect(cx - 7, cy - 6, 14, 12, WHITE);
+    display.fillRect(cx - 4, cy - 4, 8, 8, WHITE);
+    display.drawFastHLine(cx - 10, cy - 3, 3, WHITE);
+    display.drawFastHLine(cx - 10, cy + 3, 3, WHITE);
+    display.drawFastHLine(cx + 7,  cy - 3, 3, WHITE);
+    display.drawFastHLine(cx + 7,  cy + 3, 3, WHITE);
+    display.drawLine(cx - 14, cy - 12, cx + 14, cy + 12, WHITE);
+    display.drawLine(cx + 14, cy - 12, cx - 14, cy + 12, WHITE);
+    break;
+
+  default:
+    display.drawCircle(cx, cy, 12, WHITE);
+    display.fillCircle(cx, cy, 3, WHITE);
+    break;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Activated Module Screen: thick border, bold title, center logo, animated waves, bottom detail
+// ---------------------------------------------------------------------------
+void drawActiveJamScreen(const String &title, int animStep, int menuIdx, const unsigned char *customBitmap, const String &subDetail)
+{
+  (void)customBitmap;
+  display.clearDisplay();
+
+  // Always use the clean, centered creative vector logo for ALL modules
+  if ( menuIdx >= 0 )
+  {
+    drawLargeModuleLogo(menuIdx, 64, 31);
+  }
+  else
+  {
+    drawLargeModuleLogo(5, 64, 31);
+  }
+
+  // Clear top title band
+  display.fillRect(2, 2, SCREEN_WIDTH - 4, 12, BLACK);
+  display.setTextSize(1);
+  display.setTextColor(WHITE, BLACK);
+  int titleW = title.length() * 6;
+  int titleX = (SCREEN_WIDTH - titleW) / 2;
+  if ( titleX < 4 ) titleX = 4;
+  display.setCursor(titleX, 4);
+  display.print(title);
+  display.setCursor(titleX + 1, 4); // bold effect
+  display.print(title);
+  display.drawFastHLine(2, 14, SCREEN_WIDTH - 4, WHITE);
+
+  // Clear left and right signal animation bands
+  display.fillRect(2, 16, 26, 43, BLACK);
+  display.fillRect(SCREEN_WIDTH - 28, 16, 26, 43, BLACK);
+
+  // Animated signals: 1 to 4 expanding waves (changes each step)
+  int bars = (animStep % 4) + 1; // 1, 2, 3, 4
+
+  // Left signal: (((( .
+  int lx = 24, ly = 31;
+  display.fillCircle(lx, ly, 1, WHITE);
+  for ( int b = 1; b <= bars; b++ )
+  {
+    int r = b * 4 + 1;
+    display.drawCircleHelper(lx, ly, r, 1 | 8, WHITE);
+  }
+
+  // Right signal: . ))))
+  int rx = SCREEN_WIDTH - 24, ry = 31;
+  display.fillCircle(rx, ry, 1, WHITE);
+  for ( int b = 1; b <= bars; b++ )
+  {
+    int r = b * 4 + 1;
+    display.drawCircleHelper(rx, ry, r, 2 | 4, WHITE);
+  }
+
+  // Bottom module detail / target info banner (e.g., "FlySky AFHDS", "21 Channels", etc.)
+  if ( subDetail.length() > 0 )
+  {
+    display.fillRect(4, 49, SCREEN_WIDTH - 8, 11, BLACK);
+    display.drawFastHLine(4, 49, SCREEN_WIDTH - 8, WHITE);
+    display.setTextSize(1);
+    display.setTextColor(WHITE, BLACK);
+    int subW = subDetail.length() * 6;
+    int subX = (SCREEN_WIDTH - subW) / 2;
+    if ( subX < 4 ) subX = 4;
+    display.setCursor(subX, 52);
+    display.print(subDetail);
+  }
+
+  // Thick double border around entire screen (||==================||)
+  display.drawRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, WHITE);
+  display.drawRect(1, 1, SCREEN_WIDTH - 2, SCREEN_HEIGHT - 2, WHITE);
+
+  display.display();
+}
+
+// ---------------------------------------------------------------------------
 // jamHandler
 // ---------------------------------------------------------------------------
 bool jamHandler(void (*action)(), String htmlResponse, const unsigned char *bitmap, bool CW, bool mode, bool isMisc, bool scan, int ch1, int ch2)
 {
   (void)htmlResponse;
 
-  // Only one jam may own the radios at a time.  Without this, typing another
-  // "jam ..." command (or pressing OK on the joystick) while a jam is running
-  // re-initialises the SPI bus underneath the live task and wedges both.
   if ( s_jamActive )
   {
     if ( webServerStarted && server.client() )
@@ -1299,8 +1542,6 @@ bool jamHandler(void (*action)(), String htmlResponse, const unsigned char *bitm
                      action == ble_adv_flood_task ||
                      action == ble_scan_flood_task );
 
-  // Every nRF24 jammer divides by nrf24_count.  Refuse to start instead of
-  // hitting a divide-by-zero panic when no module is configured.
   if ( !isBleTask && nrf24_count <= 0 )
   {
     Serial.println("[jamHandler] refused: no nRF24 modules configured");
@@ -1315,32 +1556,43 @@ bool jamHandler(void (*action)(), String htmlResponse, const unsigned char *bitm
   stopJam                 = false;
   TaskHandle_t TaskHandle = NULL;
 
-  // These sweep jammers only retune the radio, so they need a constant
-  // carrier.  Several call sites still pass CW=false from the old packet-based
-  // implementation, which made them completely silent once writeFast() was
-  // removed.  Force the carrier on centrally so every entry point (web,
-  // terminal, joystick) behaves identically.
   if ( action == wifi_jam || action == wifi_scan_jam || action == wifi_channel ||
        action == zigbee_jam || action == full_24g_jam || action == usb_24g_jam ||
        action == fpv_video_jam || action == ble_advertising_jam )
     CW = true;
 
-  // NOTE: jam_delay is deliberately NOT clamped.  0 means the carrier is
-  // swept at full SPI speed (~2 us per channel), which produces the broadband
-  // chirp these jammers rely on.  Raising it turns the sweep into a stepped
-  // carrier with far less spectral coverage.
-
-  if ( !isMisc )
+  // Derive informative subDetail banner for the bottom of active screen
+  String subDetail = "";
+  if ( htmlResponse.indexOf("FlySky") >= 0 ) subDetail = "FlySky AFHDS";
+  else if ( htmlResponse.indexOf("Spektrum") >= 0 ) subDetail = "Spektrum DSM";
+  else if ( htmlResponse.indexOf("FrSky") >= 0 ) subDetail = "FrSky D8/D16";
+  else if ( htmlResponse.indexOf("Logitech") >= 0 ) subDetail = "Logitech Unify";
+  else if ( htmlResponse.indexOf("Microsoft") >= 0 ) subDetail = "Microsoft HID";
+  else if ( isMisc ) subDetail = "Ch " + String(ch1) + " - Ch " + String(ch2);
+  else
   {
-    display.clearDisplay();
-    display.drawBitmap(0, 0, bitmap, SCREEN_WIDTH, SCREEN_HEIGHT, WHITE);
-    display.display();
+    switch ( menu_number )
+    {
+    case 0: subDetail = (bluetooth_jam_method == 0) ? "21 Channels" : (bluetooth_jam_method == 1 ? "80ch Random" : "80ch Brute"); break;
+    case 1: subDetail = (drone_jam_method == 0) ? "Random Hop" : "Brute Sweep"; break;
+    case 2: subDetail = (ch1 > 0) ? ("Target Ch " + String(ch1 + 1)) : "All Channels"; break;
+    case 3: subDetail = (action == ble_advertising_jam) ? "BLE Adv Ch 37-39" : "BLE Data Ch 0-36"; break;
+    case 4: subDetail = "Channels 11-26"; break;
+    case 7: subDetail = "Full 2.40-2.48 GHz"; break;
+    case 8: subDetail = "USB 2.40-2.48 GHz"; break;
+    case 9: subDetail = "FPV Video Band"; break;
+    case 10: subDetail = "HID Wireless Band"; break;
+    case 11: subDetail = "RC Controller Band"; break;
+    case 12: subDetail = "Apple Continuity Flood"; break;
+    default: break;
+    }
   }
 
-  // Only push the jam HTML page if a real HTTP client is connected.
-  // Serial- or button-triggered jams have no active request; calling
-  // server.send_P() in that state can block on some ESP32 core versions
-  // and prevents the jam task from ever being created.
+  // Initial draw with active frame & signal animation
+  int animStep = 0;
+  String dispTitle = (htmlResponse.length() > 0) ? htmlResponse : "Active Jammer";
+  drawActiveJamScreen(dispTitle, animStep, menu_number, nullptr, subDetail);
+
   if ( webServerStarted && server.client() )
   {
     server.sendHeader("Content-Encoding", "gzip");
@@ -1380,16 +1632,11 @@ bool jamHandler(void (*action)(), String htmlResponse, const unsigned char *bitm
     }
   }
 
-  // The BLE attack tasks use NimBLE + std::string + heap allocation and need
-  // a much larger stack than the nRF24 channel-hoppers.  A 4 KB stack causes
-  // a silent panic/reboot shortly after start.
   uint32_t stackSize = isBleTask ? 16384 : 4096;
 
   BaseType_t created = xTaskCreatePinnedToCore(reinterpret_cast<TaskFunction_t>(action), "Jammer", stackSize, NULL, 3, &TaskHandle, 0);
   if ( created != pdPASS || TaskHandle == NULL )
   {
-    // Ignoring this return value used to leave the UI spinning forever while
-    // waiting for a task that was never created.
     Serial.println("[jamHandler] ERROR: could not create jam task (out of heap?)");
     stopJam = true;
     if ( isMisc )
@@ -1403,23 +1650,27 @@ bool jamHandler(void (*action)(), String htmlResponse, const unsigned char *bitm
   }
 
   updateJoystickButtons();
-  bool SerialStop = true;
-  bool exit       = false;
+  bool     SerialStop   = true;
+  bool     exit         = false;
+  uint32_t lastAnimTime = millis();
 
   while ( !exit && SerialStop )
   {
     randomSeed(esp_random() + millis());
     updateJoystickButtons();
 
-    // NOTE: server.handleClient() must NOT be called here.  We are already
-    // inside a request handler, so WebServer keeps _currentStatus at
-    // HC_WAIT_READ and a nested call can never accept a new client - it only
-    // burns CPU and eventually closes the socket.  A running jam is therefore
-    // stopped with the joystick (OK) or with the "stop" command over USB
-    // serial, both of which are polled below.
+    // Pulse signal waves animation (~300ms per step, 4-step cycle)
+    uint32_t now = millis();
+    if ( now - lastAnimTime >= 300 )
+    {
+      lastAnimTime = now;
+      animStep++;
+      drawActiveJamScreen(dispTitle, animStep, menu_number, nullptr, subDetail);
+    }
+
     SerialStop = SerialCommands();
 
-    if ( btnOK.isSingle() )
+    if ( btnOK.isSingle() || btnOK.isHolded() )
     {
       exit = true;
       break;
@@ -1427,14 +1678,12 @@ bool jamHandler(void (*action)(), String htmlResponse, const unsigned char *bitm
 
     if ( (btnNext.isSingle() || btnPrevious.isSingle() || btnOK.isDouble()) && mode )
       break;
-    delay(1);
+
+    delay(5);
   }
 
   stopJam = true;
 
-  // Wait for the jam task to delete itself, but never block forever: a task
-  // that hard-faulted (or a BLE task that already called vTaskDelete) must not
-  // freeze the whole device.
   uint32_t waitStart = millis();
   while ( TaskHandle != NULL && eTaskGetState(TaskHandle) != eDeleted && (millis() - waitStart) < 5000 )
     delay(1);

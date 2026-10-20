@@ -97,10 +97,93 @@ inline bool hspi     = false;
 #define JOY_VRY          35
 #define JOY_VRX          34
 
+// User-configurable Joystick settings (persisted in flash)
+inline int joy_inverted  = 1;   // 1 = Inverted (hardware default), 0 = Normal
+inline int joy_hold_ms   = 350; // Milliseconds before hold-to-repeat starts
+inline int joy_repeat_ms = 140; // Auto-repeat interval while holding
+inline int joy_deadzone  = 800; // Deadzone threshold around center (0..2048)
+
+// Responsive Joystick Axis controller with instant flick response & hold-to-repeat
+class JoystickAxis
+{
+public:
+  JoystickAxis() : _state(false), _triggered(false), _held(false), _holdTimer(0), _repeatTimer(0) {}
+
+  void tick(bool active)
+  {
+    uint32_t now = millis();
+    if ( active )
+    {
+      if ( !_state )
+      {
+        // First frame of deflection: trigger immediately! No delay!
+        _state       = true;
+        _triggered   = true;
+        _held        = false;
+        _holdTimer   = now;
+        _repeatTimer = now;
+      }
+      else
+      {
+        // Still being held deflected
+        if ( now - _holdTimer >= (uint32_t)joy_hold_ms )
+        {
+          _held = true;
+          if ( now - _repeatTimer >= (uint32_t)joy_repeat_ms )
+          {
+            _triggered   = true; // Fire repeated click!
+            _repeatTimer = now;
+          }
+        }
+      }
+    }
+    else
+    {
+      // Released back to deadzone
+      _state     = false;
+      _held      = false;
+    }
+  }
+
+  bool isSingle()
+  {
+    if ( _triggered )
+    {
+      _triggered = false;
+      return true;
+    }
+    return false;
+  }
+
+  bool isClick()  { return isSingle(); }
+  bool isHold()   { return _held; }
+  bool isHolded() { return _held; }
+  bool state()    { return _state; }
+
+  void resetStates()
+  {
+    _triggered = false;
+    _held      = false;
+  }
+
+  // Compatibility stubs for GButton API
+  void setTickMode(bool) {}
+  void setClickTimeout(uint16_t) {}
+  void setTimeout(uint16_t) {}
+  void setDebounce(uint16_t) {}
+
+private:
+  bool     _state;
+  bool     _triggered;
+  bool     _held;
+  uint32_t _holdTimer;
+  uint32_t _repeatTimer;
+};
+
 inline SPIClass        *hp = nullptr;
 inline GButton          btnOK(JOY_SW, HIGH_PULL, NORM_OPEN);
-inline GButton          btnNext(JOY_VRY, HIGH_PULL, NORM_OPEN);
-inline GButton          btnPrevious(JOY_VRX, HIGH_PULL, NORM_OPEN);
+inline JoystickAxis     btnNext;
+inline JoystickAxis     btnPrevious;
 
 inline WebServer        server(80);
 inline DNSServer        dnsServer;
@@ -111,27 +194,63 @@ inline Preferences      prefs;
 inline int joy_center_y = 2048;
 inline int joy_center_x = 2048;
 
-// Configures the joystick pins and samples resting center position
+// Configures the joystick pins and samples resting center position robustly
 inline void initJoystick()
 {
   pinMode(JOY_SW, INPUT_PULLUP);
   analogReadResolution(12); // 12-bit ADC (0..4095)
 
-  // Calibrate joystick resting center at boot (average 16 samples)
+  // Give power rails and ADC reference voltage time to stabilize on hard reboot
+  delay(120);
+
+  // Warm up ADC and discard initial transient reads
+  for ( int i = 0; i < 4; i++ )
+  {
+    analogRead(JOY_VRY);
+    analogRead(JOY_VRX);
+    delay(2);
+  }
+
+  // Calibrate joystick resting center at boot (average 32 samples with noise rejection)
   long sum_y = 0;
   long sum_x = 0;
-  for ( int i = 0; i < 16; i++ )
-  {
-    sum_y += analogRead(JOY_VRY);
-    sum_x += analogRead(JOY_VRX);
-    delay(5);
-  }
-  joy_center_y = sum_y / 16;
-  joy_center_x = sum_x / 16;
+  int  min_y = 4096, max_y = 0;
+  int  min_x = 4096, max_x = 0;
 
-  // Fallback sanity check if disconnected or floating
-  if ( joy_center_y < 500 || joy_center_y > 3500 ) joy_center_y = 2048;
-  if ( joy_center_x < 500 || joy_center_x > 3500 ) joy_center_x = 2048;
+  for ( int i = 0; i < 32; i++ )
+  {
+    int vy = analogRead(JOY_VRY);
+    int vx = analogRead(JOY_VRX);
+
+    sum_y += vy;
+    sum_x += vx;
+
+    if ( vy < min_y ) min_y = vy;
+    if ( vy > max_y ) max_y = vy;
+    if ( vx < min_x ) min_x = vx;
+    if ( vx > max_x ) max_x = vx;
+
+    delay(3);
+  }
+
+  // If the user was wiggling the joystick or readings were unstable, use safe default 2048
+  if ( (max_y - min_y) > 350 || (max_x - min_x) > 350 )
+  {
+    joy_center_y = 2048;
+    joy_center_x = 2048;
+  }
+  else
+  {
+    joy_center_y = sum_y / 32;
+    joy_center_x = sum_x / 32;
+  }
+
+  // Strict sanity bounds for hardware center (potentiometer middle on 3.3V ADC is ~1700-2400)
+  if ( joy_center_y < 1600 || joy_center_y > 2500 ) joy_center_y = 2048;
+  if ( joy_center_x < 1600 || joy_center_x > 2500 ) joy_center_x = 2048;
+
+  btnNext.resetStates();
+  btnPrevious.resetStates();
 }
 
 // Reads joystick SW (digital) and deflection on VRy/VRx (analog with deadband)
@@ -141,15 +260,48 @@ inline void updateJoystickButtons()
   bool sw_pressed = (digitalRead(JOY_SW) == LOW);
   btnOK.tick(sw_pressed);
 
-  // Deadband around resting center (~900 units out of 0..4095 range)
-  static const int JOY_DEADZONE = 900;
-
   int raw_y = analogRead(JOY_VRY);
   int raw_x = analogRead(JOY_VRX);
 
-  // Deflection in positive direction (Next) or negative direction (Previous)
-  bool next_active = (raw_y > (joy_center_y + JOY_DEADZONE)) || (raw_x > (joy_center_x + JOY_DEADZONE));
-  bool prev_active = (raw_y < (joy_center_y - JOY_DEADZONE)) || (raw_x < (joy_center_x - JOY_DEADZONE));
+  bool next_active = false;
+  bool prev_active = false;
+
+  if ( joy_inverted )
+  {
+    // Inverted: Low values on axes mean Next, High values mean Previous
+    next_active = (raw_y < (joy_center_y - joy_deadzone)) || (raw_x < (joy_center_x - joy_deadzone));
+    prev_active = (raw_y > (joy_center_y + joy_deadzone)) || (raw_x > (joy_center_x + joy_deadzone));
+  }
+  else
+  {
+    // Normal: High values on axes mean Next, Low values mean Previous
+    next_active = (raw_y > (joy_center_y + joy_deadzone)) || (raw_x > (joy_center_x + joy_deadzone));
+    prev_active = (raw_y < (joy_center_y - joy_deadzone)) || (raw_x < (joy_center_x - joy_deadzone));
+  }
+
+  // Runaway watchdog: if an axis is continuously held active for over 15s without SW click,
+  // it indicates a disconnected analog line or corrupted center -> auto-recenter to current
+  static uint32_t s_activeTimer = 0;
+  uint32_t now = millis();
+  if ( next_active || prev_active )
+  {
+    if ( s_activeTimer == 0 ) s_activeTimer = now;
+    else if ( now - s_activeTimer > 15000 )
+    {
+      // Auto-recenter to unfreeze
+      joy_center_y = raw_y;
+      joy_center_x = raw_x;
+      next_active = false;
+      prev_active = false;
+      btnNext.resetStates();
+      btnPrevious.resetStates();
+      s_activeTimer = 0;
+    }
+  }
+  else
+  {
+    s_activeTimer = 0;
+  }
 
   btnNext.tick(next_active);
   btnPrevious.tick(prev_active);
