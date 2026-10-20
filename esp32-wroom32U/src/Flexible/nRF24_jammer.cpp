@@ -2519,13 +2519,8 @@ void wifi_select()
       {
       case 0: // All Channels
       {
-        while ( !btnOK.isSingle() )
-        {
-          bool exit = jamHandler(wifi_jam, String("WiFi Jam All"), nullptr, false, true);
-          if ( btnOK.isSingle() || exit )
-            break;
-          attackHandler(String("WiFi Deauth All"), wifi_deauth_all, nullptr);
-        }
+        jamHandler(wifi_jam, String("WiFi Jam All"), nullptr, true, true);
+        attackHandler(String("WiFi Deauth All"), wifi_deauth_all, nullptr);
         break;
       }
       case 1: // Target Channel Scan & Pick
@@ -2599,13 +2594,8 @@ void wifi_select()
           }
           if ( btnOK.isSingle() )
           {
-            while ( !btnOK.isSingle() )
-            {
-              bool exit = jamHandler(wifi_channel, "Jamming Ch " + String(targetCh), nullptr, false, true, false, false, targetCh - 1, 0);
-              if ( btnOK.isSingle() || exit )
-                break;
-              wifi_deauth_channel(targetCh);
-            }
+            jamHandler(wifi_channel, "Jamming Ch " + String(targetCh), nullptr, true, true, false, false, targetCh - 1, 0);
+            wifi_deauth_channel(targetCh);
             break;
           }
           delay(1);
@@ -2629,13 +2619,8 @@ void wifi_select()
         if ( access_point == 0 )
           WiFi.softAP(ssid.c_str(), password.c_str());
 
-        while ( !btnOK.isSingle() )
-        {
-          bool exit = jamHandler(wifi_scan_jam, String("WiFi Smart Jam"), nullptr, false, true);
-          if ( btnOK.isSingle() || exit )
-            break;
-          attackHandler(String("WiFi Deauth Scan"), wifi_deauth_scan, nullptr);
-        }
+        jamHandler(wifi_scan_jam, String("WiFi Smart Jam"), nullptr, true, true);
+        attackHandler(String("WiFi Deauth Scan"), wifi_deauth_scan, nullptr);
         break;
       }
       case 3: // Beacon Spam (List)

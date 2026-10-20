@@ -148,6 +148,16 @@ void HSPI_deinit()
 static inline void cwHop(RF24 *r, uint8_t ch)
 {
   r->setChannel(ch);
+
+  // The sweep tasks run on core 0 at priority 3 in a tight loop.  Yield to the
+  // idle task periodically (every ~50 hops) so it can feed the watchdog;
+  // without this the ESP32 reboots during BLE/HID sweeps.
+  static uint32_t hopCount = 0;
+  if ( ++hopCount >= 50 )
+  {
+    hopCount = 0;
+    vTaskDelay(1);
+  }
 }
 
 // Packet-mode hop: let the PLL settle, then use the BLOCKING write() so the
@@ -1530,6 +1540,7 @@ void drawActiveJamScreen(const String &title, int animStep, int menuIdx, const u
 bool jamHandler(void (*action)(), String htmlResponse, const unsigned char *bitmap, bool CW, bool mode, bool isMisc, bool scan, int ch1, int ch2)
 {
   (void)htmlResponse;
+  (void)mode;
 
   if ( s_jamActive )
   {
@@ -1632,7 +1643,7 @@ bool jamHandler(void (*action)(), String htmlResponse, const unsigned char *bitm
     }
   }
 
-  uint32_t stackSize = isBleTask ? 16384 : 4096;
+  uint32_t stackSize = isBleTask ? 16384 : 8192;
 
   BaseType_t created = xTaskCreatePinnedToCore(reinterpret_cast<TaskFunction_t>(action), "Jammer", stackSize, NULL, 3, &TaskHandle, 0);
   if ( created != pdPASS || TaskHandle == NULL )
@@ -1648,6 +1659,8 @@ bool jamHandler(void (*action)(), String htmlResponse, const unsigned char *bitm
     updateDisplay(menu_number);
     return false;
   }
+
+  Serial.printf("[jamHandler] task created on core 0 (stack %u)\n", (unsigned)stackSize);
 
   updateJoystickButtons();
   bool     SerialStop   = true;
@@ -1675,9 +1688,6 @@ bool jamHandler(void (*action)(), String htmlResponse, const unsigned char *bitm
       exit = true;
       break;
     }
-
-    if ( (btnNext.isSingle() || btnPrevious.isSingle() || btnOK.isDouble()) && mode )
-      break;
 
     delay(5);
   }

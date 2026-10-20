@@ -62,8 +62,7 @@ void sniffer(void *buf, wifi_promiscuous_pkt_type_t type)
 
 void send_beacon(const char ssidArray[][33], uint16_t count, int MacSeed)
 {
-  uint8_t channel = (abs(MacSeed) % 13) + 1;
-  esp_wifi_set_channel(channel, WIFI_SECOND_CHAN_NONE);
+  const uint8_t baseChannel = (abs(MacSeed) % 13) + 1;
 
   static uint16_t seq_counter = 0;
   uint8_t         frame[128];
@@ -84,6 +83,12 @@ void send_beacon(const char ssidArray[][33], uint16_t count, int MacSeed)
     mac[3] = ((number + 1) * MacSeed * 3) & 0xFF;
     mac[4] = ((number + 1) * MacSeed * 4) & 0xFF;
     mac[5] = number & 0xFF;
+
+    // Rotate the channel for each SSID so the whole burst is spread across the
+    // 2.4 GHz band and a scanner sees many networks (previously every beacon
+    // in a burst went out on a single channel, so phones only caught 1-2).
+    uint8_t channel = ((baseChannel + number) % 13) + 1;
+    esp_wifi_set_channel(channel, WIFI_SECOND_CHAN_NONE);
 
     int pos      = 0;
     frame[pos++] = 0x80;
@@ -338,6 +343,19 @@ void wifi_beacon_spam_array()
     if ( SSIDs_Array[i][0] == '\0' )
       break;
     count = i + 1;
+  }
+
+  // If the user wordlist is empty, fall back to the built-in SSIDs so this
+  // mode still emits beacons instead of sending nothing.
+  if ( count == 0 )
+  {
+    for ( int i = 0; i < 100; i++ )
+    {
+      if ( default_SSIDs_Array[i][0] == '\0' )
+        break;
+      strlcpy(SSIDs_Array[i], default_SSIDs_Array[i], 33);
+      count = i + 1;
+    }
   }
   if ( access_point == 0 )
     WiFi.softAPdisconnect(true);
