@@ -28,6 +28,8 @@
 
 #include "ble_attack.h"
 
+extern volatile bool stopJam;
+
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
@@ -63,8 +65,7 @@ static bool ensureBLEInit()
   return true;
 }
 
-/// Tear down NimBLE, then kill the calling FreeRTOS task.  Every BLE attack
-/// function must end by calling this.
+/// Tear down NimBLE. Every BLE attack function must end by calling this.
 static void shutdownBLE()
 {
   if ( s_bleInitialized )
@@ -77,9 +78,8 @@ static void shutdownBLE()
     NimBLEDevice::deinit(true);
     s_bleInitialized = false;
   }
-
-  vTaskDelete(NULL);
 }
+
 
 /// Generate a new static-random BLE address (top two bits of byte 5 must be 11).
 static void generateRandomAddress(uint8_t out[6], uint32_t &seed)
@@ -133,13 +133,17 @@ void apple_ble_flood()
   Serial.println("[apple_ble_flood] task entered");
 
   if ( !ensureBLEInit() )
+  {
     shutdownBLE();
+    return;
+  }
 
   s_adv = NimBLEDevice::getAdvertising();
   if ( s_adv == nullptr )
   {
     Serial.println("[apple_ble_flood] no advertising instance");
     shutdownBLE();
+    return;
   }
   s_adv->stop();
 
@@ -149,8 +153,6 @@ void apple_ble_flood()
   uint32_t seed  = esp_random();
   uint8_t  rndAddr[6];
 
-  // External stop flag from the jamHandler infrastructure.
-  extern bool stopJam;
 
   while ( !stopJam )
   {
@@ -211,20 +213,23 @@ void ble_adv_flood()
   Serial.println("[ble_adv_flood] task entered");
 
   if ( !ensureBLEInit() )
+  {
     shutdownBLE();
+    return;
+  }
 
   s_adv = NimBLEDevice::getAdvertising();
   if ( s_adv == nullptr )
   {
     Serial.println("[ble_adv_flood] no advertising instance");
     shutdownBLE();
+    return;
   }
   s_adv->stop();
 
   uint32_t seed = esp_random();
   uint8_t  rndAddr[6];
 
-  extern bool stopJam;
 
   while ( !stopJam )
   {
@@ -284,13 +289,17 @@ void ble_scan_flood()
   Serial.println("[ble_scan_flood] task entered");
 
   if ( !ensureBLEInit() )
+  {
     shutdownBLE();
+    return;
+  }
 
   NimBLEScan *scanner = NimBLEDevice::getScan();
   if ( scanner == nullptr )
   {
     Serial.println("[ble_scan_flood] no scanner instance");
     shutdownBLE();
+    return;
   }
   scanner->setActiveScan(true);
   scanner->setInterval(40);
@@ -301,13 +310,13 @@ void ble_scan_flood()
   {
     Serial.println("[ble_scan_flood] no advertising instance");
     shutdownBLE();
+    return;
   }
   s_adv->stop();
 
   uint32_t seed = esp_random();
   uint8_t  rndAddr[6];
 
-  extern bool stopJam;
 
   while ( !stopJam )
   {

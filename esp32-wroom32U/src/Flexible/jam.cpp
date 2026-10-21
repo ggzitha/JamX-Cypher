@@ -11,7 +11,22 @@ void ble_scan_flood_task();
 
 int        nrf_pa_level;
 static int global_ch1, global_ch2;
-bool       stopJam = false;
+volatile bool stopJam = false;
+
+static void (*s_jamAction)() = nullptr;
+static volatile bool s_jamRunning = false;
+
+static void jamTaskRunner(void *param)
+{
+  (void)param;
+  s_jamRunning = true;
+  if ( s_jamAction != nullptr )
+  {
+    s_jamAction();
+  }
+  s_jamRunning = false;
+  vTaskDelete(NULL);
+}
 
 // Guards against a second jam being started while one owns the radios.
 static bool s_jamActive = false;
@@ -147,6 +162,9 @@ void HSPI_deinit()
 // ---------------------------------------------------------------------------
 static inline void cwHop(RF24 *r, uint8_t ch)
 {
+  if ( stopJam || r == nullptr || hp == nullptr )
+    return;
+
   r->setChannel(ch);
 
   // The sweep tasks run on core 0 at priority 3 in a tight loop.  Yield to the
@@ -164,8 +182,14 @@ static inline void cwHop(RF24 *r, uint8_t ch)
 // packet actually finishes on this channel before the next retune.
 static inline void pktHop(RF24 *r, uint8_t ch, const void *buf, uint8_t len)
 {
+  if ( stopJam || r == nullptr || hp == nullptr )
+    return;
+
   r->setChannel(ch);
   delayMicroseconds(NRF24_MIN_DWELL_US);
+  if ( stopJam || r == nullptr || hp == nullptr )
+    return;
+
   r->write(buf, len);
 }
 void bluetooth_jam()
@@ -173,6 +197,11 @@ void bluetooth_jam()
   vTaskPrioritySet(NULL, 3);
   while ( !stopJam )
   {
+    if ( nrf24_count <= 0 || stopJam )
+    {
+      vTaskDelay(10 / portTICK_PERIOD_MS);
+      break;
+    }
     if ( Separate_or_together == 0 )
     {
       if ( bluetooth_jam_method == 0 )
@@ -284,13 +313,18 @@ void bluetooth_jam()
       }
     }
   }
-  vTaskDelete(NULL);
 }
+
 void drone_jam()
 {
   vTaskPrioritySet(NULL, 3);
   while ( !stopJam )
   {
+    if ( nrf24_count <= 0 || stopJam )
+    {
+      vTaskDelay(10 / portTICK_PERIOD_MS);
+      break;
+    }
     if ( Separate_or_together == 0 )
     {
       if ( drone_jam_method == 0 )
@@ -360,13 +394,18 @@ void drone_jam()
       }
     }
   }
-  vTaskDelete(NULL);
 }
+
 void ble_advertising_jam()
 {
   vTaskPrioritySet(NULL, 3);
   while ( !stopJam )
   {
+    if ( nrf24_count <= 0 || stopJam )
+    {
+      vTaskDelay(10 / portTICK_PERIOD_MS);
+      break;
+    }
     if ( Separate_or_together == 0 )
     {
       int total_channels = 3;
@@ -396,13 +435,18 @@ void ble_advertising_jam()
       }
     }
   }
-  vTaskDelete(NULL);
 }
+
 void ble_data_jam()
 {
   vTaskPrioritySet(NULL, 3);
   while ( !stopJam )
   {
+    if ( nrf24_count <= 0 || stopJam )
+    {
+      vTaskDelay(10 / portTICK_PERIOD_MS);
+      break;
+    }
     if ( Separate_or_together == 0 )
     {
       int total_channels = 40;
@@ -446,13 +490,18 @@ void ble_data_jam()
       }
     }
   }
-  vTaskDelete(NULL);
 }
+
 void wifi_jam()
 {
   vTaskPrioritySet(NULL, 3);
   while ( !stopJam )
   {
+    if ( nrf24_count <= 0 || stopJam )
+    {
+      vTaskDelay(10 / portTICK_PERIOD_MS);
+      break;
+    }
     for ( int channel = 0; channel < 14; channel++ )
     {
       if ( Separate_or_together == 0 )
@@ -482,14 +531,19 @@ void wifi_jam()
       }
     }
   }
-  vTaskDelete(NULL);
 }
+
 void wifi_scan_jam()
 {
   vTaskPrioritySet(NULL, 3);
   int scanCounter = 0;
   while ( !stopJam )
   {
+    if ( nrf24_count <= 0 || stopJam )
+    {
+      vTaskDelay(10 / portTICK_PERIOD_MS);
+      break;
+    }
     if ( scanCounter >= 10000 )
     {
       NumberChannels = scan_wifi_APs(WiFiScanChannels, true);
@@ -535,13 +589,18 @@ void wifi_scan_jam()
     }
     scanCounter++;
   }
-  vTaskDelete(NULL);
 }
+
 void wifi_channel()
 {
   vTaskPrioritySet(NULL, 3);
   while ( !stopJam )
   {
+    if ( nrf24_count <= 0 || stopJam )
+    {
+      vTaskDelay(10 / portTICK_PERIOD_MS);
+      break;
+    }
     if ( Separate_or_together == 0 )
     {
       int total_channels = 23;
@@ -568,13 +627,18 @@ void wifi_channel()
       }
     }
   }
-  vTaskDelete(NULL);
 }
+
 void zigbee_jam()
 {
   vTaskPrioritySet(NULL, 3);
   while ( !stopJam )
   {
+    if ( nrf24_count <= 0 || stopJam )
+    {
+      vTaskDelay(10 / portTICK_PERIOD_MS);
+      break;
+    }
     for ( int channel = 11; channel < 27; channel++ )
     {
       if ( Separate_or_together == 0 )
@@ -604,13 +668,18 @@ void zigbee_jam()
       }
     }
   }
-  vTaskDelete(NULL);
 }
+
 void misc_jam()
 {
   vTaskPrioritySet(NULL, 3);
   while ( !stopJam )
   {
+    if ( nrf24_count <= 0 || stopJam )
+    {
+      vTaskDelay(10 / portTICK_PERIOD_MS);
+      break;
+    }
     if ( Separate_or_together == 0 )
     {
       int total_channels = global_ch2 - global_ch1 + 1;
@@ -664,8 +733,8 @@ void misc_jam()
       }
     }
   }
-  vTaskDelete(NULL);
 }
+
 
 // Full 2.4 GHz band sweep: channels 1-125 (2401-2525 MHz)
 void full_24g_jam()
@@ -673,6 +742,11 @@ void full_24g_jam()
   vTaskPrioritySet(NULL, 3);
   while ( !stopJam )
   {
+    if ( nrf24_count <= 0 || stopJam )
+    {
+      vTaskDelay(10 / portTICK_PERIOD_MS);
+      break;
+    }
     if ( Separate_or_together == 0 )
     {
       int total_channels = 125;
@@ -710,8 +784,8 @@ void full_24g_jam()
       }
     }
   }
-  vTaskDelete(NULL);
 }
+
 
 // USB 2.4 GHz wireless dongle band: channels 2-40
 void usb_24g_jam()
@@ -719,6 +793,11 @@ void usb_24g_jam()
   vTaskPrioritySet(NULL, 3);
   while ( !stopJam )
   {
+    if ( nrf24_count <= 0 || stopJam )
+    {
+      vTaskDelay(10 / portTICK_PERIOD_MS);
+      break;
+    }
     if ( Separate_or_together == 0 )
     {
       int total_channels = 39;
@@ -756,8 +835,8 @@ void usb_24g_jam()
       }
     }
   }
-  vTaskDelete(NULL);
 }
+
 
 // FPV / 2.4 GHz video band: channels 45-80
 void fpv_video_jam()
@@ -765,6 +844,11 @@ void fpv_video_jam()
   vTaskPrioritySet(NULL, 3);
   while ( !stopJam )
   {
+    if ( nrf24_count <= 0 || stopJam )
+    {
+      vTaskDelay(10 / portTICK_PERIOD_MS);
+      break;
+    }
     if ( Separate_or_together == 0 )
     {
       int total_channels = 36;
@@ -802,8 +886,8 @@ void fpv_video_jam()
       }
     }
   }
-  vTaskDelete(NULL);
 }
+
 
 // ---------------------------------------------------------------------------
 // HID / Wireless Peripheral Jammers
@@ -820,6 +904,11 @@ void hid_wireless_jam()
   // (nRF24 ch 2 = 2402 MHz, ch 72 = 2472 MHz).
   while ( !stopJam )
   {
+    if ( nrf24_count <= 0 || stopJam )
+    {
+      vTaskDelay(10 / portTICK_PERIOD_MS);
+      break;
+    }
     if ( Separate_or_together == 0 )
     {
       // Distribute even channels 2–72 across all radios (36 channels total).
@@ -860,8 +949,8 @@ void hid_wireless_jam()
       }
     }
   }
-  vTaskDelete(NULL);
 }
+
 
 // Logitech Unifying protocol uses a specific subset of 25 channels derived
 // from the paired receiver's address.  We target the known set that covers
@@ -880,6 +969,11 @@ void logitech_unifying_jam()
 
   while ( !stopJam )
   {
+    if ( nrf24_count <= 0 || stopJam )
+    {
+      vTaskDelay(10 / portTICK_PERIOD_MS);
+      break;
+    }
     if ( Separate_or_together == 0 )
     {
       int base = total / nrf24_count;
@@ -916,8 +1010,8 @@ void logitech_unifying_jam()
       }
     }
   }
-  vTaskDelete(NULL);
 }
+
 
 // Microsoft 2.4 GHz wireless mouse/keyboard dongles hop in the range ch 2–80
 // using a narrow band around a base channel.  We sweep ch 2–80 with the
@@ -928,6 +1022,11 @@ void ms_wireless_jam()
   vTaskPrioritySet(NULL, 3);
   while ( !stopJam )
   {
+    if ( nrf24_count <= 0 || stopJam )
+    {
+      vTaskDelay(10 / portTICK_PERIOD_MS);
+      break;
+    }
     if ( Separate_or_together == 0 )
     {
       int total_channels = 79;
@@ -965,8 +1064,8 @@ void ms_wireless_jam()
       }
     }
   }
-  vTaskDelete(NULL);
 }
+
 
 // ---------------------------------------------------------------------------
 // RF Controller Jammers
@@ -982,6 +1081,11 @@ void rc_controller_jam()
   vTaskPrioritySet(NULL, 3);
   while ( !stopJam )
   {
+    if ( nrf24_count <= 0 || stopJam )
+    {
+      vTaskDelay(10 / portTICK_PERIOD_MS);
+      break;
+    }
     if ( Separate_or_together == 0 )
     {
       // Distribute ch 0–125 across all radios.
@@ -1020,8 +1124,8 @@ void rc_controller_jam()
       }
     }
   }
-  vTaskDelete(NULL);
 }
+
 
 // FlySky AFHDS-2A uses 16 pseudo-randomly selected channels from the band.
 // Sweep the known AFHDS-2A candidate channel set (ch 10–140 step 5 mapped to
@@ -1041,6 +1145,11 @@ void flysky_jam()
 
   while ( !stopJam )
   {
+    if ( nrf24_count <= 0 || stopJam )
+    {
+      vTaskDelay(10 / portTICK_PERIOD_MS);
+      break;
+    }
     if ( Separate_or_together == 0 )
     {
       int base = total / nrf24_count;
@@ -1077,8 +1186,8 @@ void flysky_jam()
       }
     }
   }
-  vTaskDelete(NULL);
 }
+
 
 // Spektrum DSM2/DSMX hops 2 (DSM2) or 23 (DSMX) channels in the range
 // 0–79.  Sweep that window.
@@ -1088,6 +1197,11 @@ void spektrum_jam()
   vTaskPrioritySet(NULL, 3);
   while ( !stopJam )
   {
+    if ( nrf24_count <= 0 || stopJam )
+    {
+      vTaskDelay(10 / portTICK_PERIOD_MS);
+      break;
+    }
     if ( Separate_or_together == 0 )
     {
       int total_channels = 80;
@@ -1125,8 +1239,8 @@ void spektrum_jam()
       }
     }
   }
-  vTaskDelete(NULL);
 }
+
 
 // FrSky D8 uses 8 fixed channels; D16 / ACCESS uses 64 channels.
 // Sweep ch 0–100 (covers all FrSky bands including LBT channels).
@@ -1136,6 +1250,11 @@ void frsky_jam()
   vTaskPrioritySet(NULL, 3);
   while ( !stopJam )
   {
+    if ( nrf24_count <= 0 || stopJam )
+    {
+      vTaskDelay(10 / portTICK_PERIOD_MS);
+      break;
+    }
     if ( Separate_or_together == 0 )
     {
       int total_channels = 101;
@@ -1173,8 +1292,8 @@ void frsky_jam()
       }
     }
   }
-  vTaskDelete(NULL);
 }
+
 
 // ---------------------------------------------------------------------------
 // BLE attack wrapper task functions (bridge to ble_attack.cpp via FreeRTOS)
@@ -1185,18 +1304,19 @@ void frsky_jam()
 
 void ble_apple_flood_task()
 {
-  apple_ble_flood(); // calls vTaskDelete(NULL) internally
+  apple_ble_flood();
 }
 
 void ble_adv_flood_task()
 {
-  ble_adv_flood(); // calls vTaskDelete(NULL) internally
+  ble_adv_flood();
 }
 
 void ble_scan_flood_task()
 {
-  ble_scan_flood(); // calls vTaskDelete(NULL) internally
+  ble_scan_flood();
 }
+
 
 // ---------------------------------------------------------------------------
 // RF self-test
@@ -1645,7 +1765,10 @@ bool jamHandler(void (*action)(), String htmlResponse, const unsigned char *bitm
 
   uint32_t stackSize = isBleTask ? 16384 : 8192;
 
-  BaseType_t created = xTaskCreatePinnedToCore(reinterpret_cast<TaskFunction_t>(action), "Jammer", stackSize, NULL, 3, &TaskHandle, 0);
+  s_jamAction = action;
+  s_jamRunning = false;
+
+  BaseType_t created = xTaskCreatePinnedToCore(jamTaskRunner, "Jammer", stackSize, NULL, 3, &TaskHandle, 0);
   if ( created != pdPASS || TaskHandle == NULL )
   {
     Serial.println("[jamHandler] ERROR: could not create jam task (out of heap?)");
@@ -1662,10 +1785,12 @@ bool jamHandler(void (*action)(), String htmlResponse, const unsigned char *bitm
 
   Serial.printf("[jamHandler] task created on core 0 (stack %u)\n", (unsigned)stackSize);
 
+  btnOK.resetStates();
   updateJoystickButtons();
   bool     SerialStop   = true;
   bool     exit         = false;
   uint32_t lastAnimTime = millis();
+  uint32_t startedAt    = millis();
 
   while ( !exit && SerialStop )
   {
@@ -1683,8 +1808,10 @@ bool jamHandler(void (*action)(), String htmlResponse, const unsigned char *bitm
 
     SerialStop = SerialCommands();
 
-    if ( btnOK.isSingle() || btnOK.isHolded() )
+    // Ignore clicks during first 400ms to debounce menu selection click
+    if ( (millis() - startedAt > 400) && (btnOK.isSingle() || btnOK.isHolded()) )
     {
+      btnOK.resetStates();
       exit = true;
       break;
     }
@@ -1694,11 +1821,19 @@ bool jamHandler(void (*action)(), String htmlResponse, const unsigned char *bitm
 
   stopJam = true;
 
-  uint32_t waitStart = millis();
-  while ( TaskHandle != NULL && eTaskGetState(TaskHandle) != eDeleted && (millis() - waitStart) < 5000 )
-    delay(1);
+  if ( TaskHandle != NULL )
+  {
+    uint32_t waitStart = millis();
+    while ( s_jamRunning && (millis() - waitStart < 2000) )
+    {
+      vTaskDelay(10 / portTICK_PERIOD_MS);
+    }
+    // Give Core 0 idle task time to reclaim task resources
+    vTaskDelay(30 / portTICK_PERIOD_MS);
+    TaskHandle = NULL;
+  }
 
-  TaskHandle  = NULL;
+
   s_jamActive = false;
 
   if ( isMisc )
@@ -1717,6 +1852,7 @@ bool jamHandler(void (*action)(), String htmlResponse, const unsigned char *bitm
   }
 
   HSPI_deinit();
+  btnOK.resetStates();
   updateJoystickButtons();
   updateDisplay(menu_number);
 

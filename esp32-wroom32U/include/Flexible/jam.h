@@ -19,7 +19,7 @@ void HSPI_deinit();
 void loadSettings();
 
 // Set by the "stop" serial / web command to end a running jam.
-extern bool stopJam;
+extern volatile bool stopJam;
 
 // RF self-test: module 0 transmits a constant carrier, modules 1..n-1 report
 // carrier detect.  Returns true when the RF path is verified working.

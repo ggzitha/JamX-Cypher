@@ -153,9 +153,10 @@ void wifi_deauth_all()
   uint32_t lastAnimTime = millis();
   int      animStep     = 0;
 
-  drawActiveJamScreen("WiFi Deauth All", animStep, 2, nullptr, "All Channels (1-14)");
+  btnOK.resetStates();
+  uint32_t startedAt = millis();
 
-  while ( (!btnNext.isSingle() && !btnPrevious.isSingle() && !btnOK.isDouble() && !btnOK.isSingle() && !btnOK.isHolded()) && SerialStop )
+  while ( !((millis() - startedAt > 400) && (btnOK.isSingle() || btnOK.isHolded())) && SerialStop )
   {
     for ( int channel = 0; channel < 14; channel++ )
     {
@@ -195,9 +196,10 @@ void wifi_deauth_scan()
   uint32_t lastAnimTime = millis();
   int      animStep     = 0;
 
-  drawActiveJamScreen("WiFi Deauth Scan", animStep, 2, nullptr, "Active Channels Only");
+  btnOK.resetStates();
+  uint32_t startedAt = millis();
 
-  while ( (!btnNext.isSingle() && !btnPrevious.isSingle() && !btnOK.isDouble() && !btnOK.isSingle() && !btnOK.isHolded()) && SerialStop )
+  while ( !((millis() - startedAt > 400) && (btnOK.isSingle() || btnOK.isHolded())) && SerialStop )
   {
     if ( scanCounter >= 600 )
     {
@@ -246,9 +248,10 @@ void wifi_deauth_channel(int channel)
   uint32_t lastAnimTime = millis();
   int      animStep     = 0;
 
-  drawActiveJamScreen("WiFi Deauth Ch", animStep, 2, nullptr, "Target Channel " + String(channel));
+  btnOK.resetStates();
+  uint32_t startedAt = millis();
 
-  while ( (!btnNext.isSingle() && !btnPrevious.isSingle() && !btnOK.isDouble() && !btnOK.isSingle() && !btnOK.isHolded()) && SerialStop )
+  while ( !((millis() - startedAt > 400) && (btnOK.isSingle() || btnOK.isHolded())) && SerialStop )
   {
     updateJoystickButtons();
     SerialStop = SerialCommands();
@@ -285,9 +288,10 @@ void wifi_beacon_spam_random()
   updateJoystickButtons();
   digitalWrite(2, HIGH);
 
-  drawActiveJamScreen("WiFi Beacon Spam", animStep, 2, nullptr, "Random SSIDs");
+  btnOK.resetStates();
+  uint32_t startedAt = millis();
 
-  while ( (!btnNext.isSingle() && !btnPrevious.isSingle() && !btnOK.isDouble() && !btnOK.isSingle() && !btnOK.isHolded()) && SerialStop )
+  while ( !((millis() - startedAt > 400) && (btnOK.isSingle() || btnOK.isHolded())) && SerialStop )
   {
     updateJoystickButtons();
     SerialStop = SerialCommands();
@@ -363,9 +367,10 @@ void wifi_beacon_spam_array()
   updateJoystickButtons();
   digitalWrite(2, HIGH);
 
-  drawActiveJamScreen("WiFi Beacon Spam", animStep, 2, nullptr, "SSID Wordlist");
+  btnOK.resetStates();
+  uint32_t startedAt = millis();
 
-  while ( (!btnNext.isSingle() && !btnPrevious.isSingle() && !btnOK.isDouble() && !btnOK.isSingle() && !btnOK.isHolded()) && SerialStop )
+  while ( !((millis() - startedAt > 400) && (btnOK.isSingle() || btnOK.isHolded())) && SerialStop )
   {
     updateJoystickButtons();
     SerialStop = SerialCommands();

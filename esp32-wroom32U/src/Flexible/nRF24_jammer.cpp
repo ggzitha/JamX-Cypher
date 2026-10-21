@@ -156,14 +156,16 @@ static void drawMenuList(const char *const labels[], const int *icons, int count
   int       scroll     = current - (maxVisible / 2);
   if ( scroll < 0 )
     scroll = 0;
-  if ( scroll + maxVisible > count )
+  if ( count > maxVisible && scroll + maxVisible > count )
     scroll = count - maxVisible;
+  if ( scroll < 0 )
+    scroll = 0;
 
   display.setTextSize(1);
   for ( int i = 0; i < maxVisible; i++ )
   {
     int  idx = scroll + i;
-    if ( idx >= count )
+    if ( idx < 0 || idx >= count )
       break;
     int  y   = firstY + i * rowH;
     bool sel = (idx == current);
@@ -651,7 +653,7 @@ int detectNRF24Modules(int *found_ce, int *found_csn)
 
       writeReg(csn_pin, 0x01, 0x00);
       writeReg(csn_pin, 0x00, 0x0E);
-      delay(5);
+      delay(12);
 
       writeReg(csn_pin, 0x07, 0x70);
 
@@ -693,7 +695,7 @@ int detectNRF24Modules(int *found_ce, int *found_csn)
       delayMicroseconds(50);
       digitalWrite(ce, LOW);
 
-      delay(5);
+      delay(12);
 
       // Read STATUS with the other CE lines still held low, otherwise the
       // module can start a second transmission during the read.
@@ -732,14 +734,33 @@ int detectNRF24Modules(int *found_ce, int *found_csn)
     }
   }
 
+  // Fallback: If any CSN was detected on SPI, but its CE transmission pulse didn't trigger TX_DS
+  // (e.g. crystal startup latency or noisy environment), check if this CSN matches
+  // an existing configured module in csn_pins[] with a valid ce_pins[].
+  for ( int i = 0; i < csn_count; i++ )
+  {
+    if ( !csn_done[i] )
+    {
+      int csn_pin = csn_list[i];
+      for ( int k = 0; k < nrf24_count; k++ )
+      {
+        if ( csn_pins[k] == csn_pin && ce_pins[k] > 0 && isSafePin(ce_pins[k]) )
+        {
+          ce_list[ce_count] = ce_pins[k];
+          csn_of[ce_count]  = csn_pin;
+          ce_count++;
+          csn_done[i] = true;
+          break;
+        }
+      }
+    }
+  }
+
   HSPI_deinit();
 
   int n = (ce_count < csn_count) ? ce_count : csn_count;
   for ( int i = 0; i < n; i++ )
   {
-    // Pair each CE with the CSN it was proven against.  Pairing by index (the
-    // old behaviour) shuffled CE/CSN whenever the two scans finished in a
-    // different order.
     found_ce[i]  = ce_list[i];
     found_csn[i] = csn_of[i];
   }
@@ -1269,13 +1290,14 @@ void joystickConfigScreen()
     const int maxVisible = (SCREEN_HEIGHT == 64) ? 4 : 2;
     int scroll = current - (maxVisible / 2);
     if ( scroll < 0 ) scroll = 0;
-    if ( scroll + maxVisible > itemCount ) scroll = itemCount - maxVisible;
+    if ( itemCount > maxVisible && scroll + maxVisible > itemCount ) scroll = itemCount - maxVisible;
+    if ( scroll < 0 ) scroll = 0;
 
     display.setTextSize(1);
     for ( int i = 0; i < maxVisible; i++ )
     {
       int idx = scroll + i;
-      if ( idx >= itemCount ) break;
+      if ( idx < 0 || idx >= itemCount ) break;
       int y = firstY + i * rowH;
       bool sel = (idx == current);
       if ( sel )
@@ -2004,6 +2026,7 @@ void misc()
 // ---------------------------------------------------------------------------
 static void runJamMenu(const char *title, const char *const *labels, const int *icons, void (*const *actions)(), int itemCount)
 {
+  btnOK.resetStates();
   int current = 0;
 
   auto draw = [&]() {
@@ -2047,9 +2070,25 @@ static void runJamMenu(const char *title, const char *const *labels, const int *
 
     if ( btnOK.isSingle() )
     {
+      btnOK.resetStates();
+      if ( nrf24_count <= 0 )
+      {
+        display.clearDisplay();
+        drawMenuFrame(title);
+        display.setTextColor(WHITE, BLACK);
+        display.setCursor(14, 28);
+        display.print("No nRF24 Module!");
+        display.display();
+        delay(1200);
+        btnOK.resetStates();
+        draw();
+        continue;
+      }
+
       // CW = true is essential: without a constant carrier these jammers only
       // fire isolated packets and produce no usable interference.
       jamHandler(actions[current], String(title) + " - " + String(labels[current]), nullptr, true, false);
+      btnOK.resetStates();
       draw();
     }
     delay(1);
@@ -2155,17 +2194,32 @@ static void toolsScanSaveScreen()
 
     display.drawRoundRect(2, 24, SCREEN_WIDTH - 4, 29, 2, WHITE);
     display.setTextColor(WHITE, BLACK);
-    display.setCursor(6, 27);
-    display.print("Bus     : HSPI 10MHz");
-    display.setCursor(6, 35);
-    display.print("CSN Pins: ");
-    for ( int i = 0; i < nrf24_count && i < 4; i++ )
+    if ( nrf24_count == 0 )
     {
-      display.print(csn_pins[i]);
-      if ( i < nrf24_count - 1 && i < 3 ) display.print(",");
+      display.setCursor(6, 28);
+      display.print("No nRF24 Detected!");
+      display.setCursor(6, 38);
+      display.print("Check Wiring/Power");
     }
-    display.setCursor(6, 44);
-    display.print("Storage : Flash NVS");
+    else
+    {
+      display.setCursor(6, 26);
+      display.print("M0: CE=");
+      display.print(ce_pins[0]);
+      display.print(" CSN=");
+      display.print(csn_pins[0]);
+
+      if ( nrf24_count >= 2 )
+      {
+        display.setCursor(6, 35);
+        display.print("M1: CE=");
+        display.print(ce_pins[1]);
+        display.print(" CSN=");
+        display.print(csn_pins[1]);
+      }
+      display.setCursor(6, 44);
+      display.print("Storage: Flash NVS");
+    }
 
     drawMenuHint();
     display.display();
@@ -2406,6 +2460,7 @@ void tools_select()
 
 void ble_select()
 {
+  btnOK.resetStates();
   static const char *const labels[] = {"BLE Advert Jam", "BLE Data Jam"};
   static const int         icons[]  = {ICON_BLE, ICON_RF};
   int                      current  = 0;
@@ -2450,10 +2505,26 @@ void ble_select()
 
     if ( btnOK.isSingle() )
     {
+      btnOK.resetStates();
+      if ( nrf24_count <= 0 )
+      {
+        display.clearDisplay();
+        drawMenuFrame("BLE Jammer");
+        display.setTextColor(WHITE, BLACK);
+        display.setCursor(14, 28);
+        display.print("No nRF24 Module!");
+        display.display();
+        delay(1200);
+        btnOK.resetStates();
+        draw();
+        continue;
+      }
+
       if ( current == 0 )
-        jamHandler(ble_advertising_jam, String("BLE AD Jam"), nullptr, true, true);
+        jamHandler(ble_advertising_jam, String("BLE AD Jam"), nullptr, true, false);
       else
         jamHandler(ble_data_jam, String("BLE Data Jam"), nullptr, true, false);
+      btnOK.resetStates();
       draw();
     }
     delay(1);
@@ -2880,6 +2951,7 @@ void setup()
 
 void executeAction(int menuNum)
 {
+  btnOK.resetStates();
   if ( menuNum == 6 )
   {
     settings();
